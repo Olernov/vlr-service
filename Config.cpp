@@ -81,6 +81,9 @@ void Config::ReadConfigFile(std::ifstream& configStream)
                 throw std::runtime_error("Wrong value passed for " + option_name + ".");
             }
         }
+		else if (option_name == homeVlrGtParamName) {
+            homeVlrGt = option_value;
+        }
         else if (!option_name.empty()){
             throw std::runtime_error("Unknown parameter " + option_name + " found");
         }
@@ -109,7 +112,9 @@ void Config::ValidateParams()
 	if (password.empty()) {
         throw std::runtime_error(passwordParamName + " parameter is not set.");
     }
-
+	if (homeVlrGt.empty()) {
+        throw std::runtime_error(homeVlrGtParamName + " parameter is not set.");
+    }
     if (!(connectionCount >= minConnCount && connectionCount <= maxConnCount)) {
         throw std::runtime_error(connectionCountParamName + " must have value from " +
                                  std::to_string(minConnCount) + " to " + std::to_string(maxConnCount));
@@ -121,6 +126,7 @@ std::string Config::DumpAllSettings()
 	return vlrAddrParamName + ": " + vlrAddr + crlf +
 		vlrPortParamName + ": " + std::to_string(vlrPort) + crlf +
 		usernameParamName + ": " + username + crlf +
+		homeVlrGtParamName + ": " + homeVlrGt + crlf +
 		logDirParamName + ": " + logDir + crlf +
 		connectionCountParamName + ": " + std::to_string(connectionCount) + crlf +
 		logLevelParamName + ": " + (logLevel == error ? "error" : (logLevel == debug ? "debug" : "notice")) + crlf;

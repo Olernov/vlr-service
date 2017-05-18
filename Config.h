@@ -20,6 +20,7 @@ public:
     std::string username;
     std::string password;
     std::string domain;
+	std::string homeVlrGt;
     std::string logDir;
     std::string cdrExtension;
 	unsigned short connectionCount;
@@ -32,6 +33,7 @@ private:
     const std::string logDirParamName = "LOG_DIR";
     const std::string connectionCountParamName = "CONNECTION_COUNT";
     const std::string logLevelParamName = "LOG_LEVEL";
+    const std::string homeVlrGtParamName = "HOME_VLR_GLOBAL_TITLE";
     const int minConnCount = 1;
     const int maxConnCount = 16;
     unsigned long ParseULongValue(const std::string& name, const std::string& value);

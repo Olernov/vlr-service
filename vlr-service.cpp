@@ -96,7 +96,7 @@ int main(int argc, char* argv[])
     catch(const std::exception& ex) {
         std::cerr << "Error when parsing config file " << confFilename << " " << std::endl;
         std::cerr << ex.what() <<std::endl;
-        exit(EXIT_FAILURE);
+		exit(EXIT_FAILURE);
     }
 #ifndef _WIN32
     const std::string pidFilename = "/var/run/pgw-aggregator.pid";

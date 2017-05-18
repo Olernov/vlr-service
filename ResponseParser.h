@@ -27,14 +27,16 @@ public:
 	ResponseParser();
 	~ResponseParser();
 
-	static ParseRes Parse(RequestedDevice requestedDevice, const char* response, uint64_t imsi, std::string& result);
+	static ParseRes ResponseParser::Parse(RequestedDevice requestedDevice, const char* response, uint64_t imsi,
+		const std::string& homeVlrGt, std::string& result);
 	static void ResponseParser::StripHLRResponse(char* start, std::string& result);
 private:
-	static ParseRes ParseVLR(const char* response, std::string& result);
-	static ParseRes ParseHLR(const char* response, uint64_t imsi, std::string& result);
+	static ParseRes ParseVLRResponse(const char* response, std::string& result);
+	static ParseRes ParseHLRResponse(const char* response, uint64_t imsi, const std::string& homeVlrGt, std::string& result);
 	static bool AllCharsAreDigits(const char* str, size_t len);
 	static bool TryToSkipSubstring(const char* substr, const char*& str);
 	static bool TryToSkipDelimiters(const char*& str, const char* end);
+	static ParseRes ParseVlrAddr(const char* response, const std::string& homeVlrGt, std::string& result);
 };
 
 

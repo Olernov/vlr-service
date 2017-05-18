@@ -11,13 +11,14 @@ ResponseParser::~ResponseParser()
 }
 
 
-ParseRes ResponseParser::Parse(RequestedDevice requestedDevice, const char* response, uint64_t imsi, std::string& result)
+ParseRes ResponseParser::Parse(RequestedDevice requestedDevice, const char* response, uint64_t imsi, 
+		const std::string& homeVlrGt, std::string& result)
 {
 	if (requestedDevice == VLR) {
-		return ParseVLR(response, result);
+		return ParseVLRResponse(response, result);
 	}
 	else if (requestedDevice == HLR) {
-		return ParseHLR(response, imsi, result);
+		return ParseHLRResponse(response, imsi, homeVlrGt, result);
 	}
 	else {
 		return failure;
@@ -25,7 +26,7 @@ ParseRes ResponseParser::Parse(RequestedDevice requestedDevice, const char* resp
 }
 
 
-ParseRes ResponseParser::ParseVLR(const char* response, std::string& result)
+ParseRes ResponseParser::ParseVLRResponse(const char* response, std::string& result)
 {
 	const char* end = response + strlen(response) - 1;
 	if (!TryToSkipSubstring("SUBSCRIBER DETAILS", response)) {
@@ -63,7 +64,7 @@ ParseRes ResponseParser::ParseVLR(const char* response, std::string& result)
 }
 
 
-ParseRes ResponseParser::ParseHLR(const char* response, uint64_t imsi, std::string& result)
+ParseRes ResponseParser::ParseHLRResponse(const char* response, uint64_t imsi, const std::string& homeVlrGt, std::string& result)
 {
 	const char* end = response + strlen(response) - 1;
 	if (!TryToSkipSubstring("HLR SUBSCRIBER DATA", response)) {
@@ -101,12 +102,7 @@ ParseRes ResponseParser::ParseHLR(const char* response, uint64_t imsi, std::stri
 	if (!TryToSkipDelimiters(response, end)) {
 		return failure;
 	}
-	int vlrLength = strcspn(response, " \t\r\n");
-	char vlr[20];
-	strncpy(vlr, )
-	result.resize(vlrLength);
-	std::copy(response, response + vlrLength, result.begin());
-	return success;
+	return ParseVlrAddr(response, homeVlrGt, result);
 }
 
 
@@ -142,6 +138,43 @@ bool ResponseParser::TryToSkipDelimiters(const char*& str, const char* end)
 	}
 	return true;
 }
+
+
+ParseRes ResponseParser::ParseVlrAddr(const char* response, const std::string& homeVlrGt, std::string& result)
+{
+	int vlrLength = strcspn(response, " \t\r\n");
+	char vlr[30];
+	strncpy_s(vlr, sizeof(vlr), response, vlrLength);
+	vlr[sizeof(vlr) - 1] = STR_TERMINATOR;
+
+	/*	Visitor Location Register (VLR) address
+	 Expressed as na-ai, UNKNOWN, RESTRICTED or BARRED where:
+	 na Nature of address
+	 3 National
+	 4 International
+	 ai Address information
+	 UNKNOWN Location unknown
+	 RESTRICTED Location restricted
+	 BARRED Location barred */
+	if (!strcmp(vlr, "UNKNOWN") || !strcmp(vlr, "RESTRICTED") || !strcmp(vlr, "BARRED")) {
+		result = vlr;
+		return success;
+	}
+	
+	const char* vlrAddr = strchr(vlr, '-');
+	if (!vlrAddr) {
+		return failure;
+	}
+	vlrAddr++;
+	if (strcmp(vlrAddr, homeVlrGt.c_str())) {
+		result = "ROAMING (" + std::string(vlrAddr) + ")";
+	}
+	else {
+		result = vlrAddr;
+	}
+	return success;
+}
+
 
 void ResponseParser::StripHLRResponse(char* start, std::string& result)
 {

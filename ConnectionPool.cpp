@@ -413,7 +413,8 @@ int ConnectionPool::ProcessDeviceResponse(unsigned int index, RequestedDevice re
 						_strupr_s(recvBuf, receiveBufferSize);
 						strncat_s(hlrResponse, receiveBufferSize, recvBuf, bytesRecv + 1);
 						if (strstr(hlrResponse, "END"))  {
-							if (ResponseParser::Parse(requestedDevice, hlrResponse, m_imsis[index], errDescription) == success) {
+							if (ResponseParser::Parse(requestedDevice, hlrResponse, m_imsis[index], m_config.homeVlrGt, errDescription) 
+									== success) {
 								return OPERATION_SUCCESS;
 							}
 							else {
