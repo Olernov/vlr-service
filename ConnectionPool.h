@@ -5,14 +5,7 @@
 #include <condition_variable>
 #include "Common.h"
 #include "ResponseParser.h"
-
-
-
-enum RequestType {
-	stateQuery,
-	resetRequest
-};
-
+#include "Config.h"
 
 
 class ConnectionPool
@@ -22,7 +15,7 @@ public:
 	~ConnectionPool();
 	bool Initialize(const Config& config, std::string& errDescription);
 	bool TryAcquire(unsigned int& index);
-	int ExecRequest(unsigned int index, uint64_t imsi, RequestType requestType, std::string& resultDescr);
+	int8_t ExecRequest(unsigned int index, ClientRequest& clientRequest);
 	
 private:
 	static const int receiveBufferSize = 65000;
@@ -35,8 +28,9 @@ private:
 	bool m_finished[MAX_THREADS];
 	std::condition_variable m_condVars[MAX_THREADS];
 	std::mutex m_mutexes[MAX_THREADS];
-	RequestType m_requests[MAX_THREADS];
-	uint64_t m_imsis[MAX_THREADS];
+	ClientRequest* m_requests[MAX_THREADS];
+	
+	//uint64_t m_imsis[MAX_THREADS];
 	int m_resultCodes[MAX_THREADS];
 	std::string m_results[MAX_THREADS];
 	const Config& m_config;

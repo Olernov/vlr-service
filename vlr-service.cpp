@@ -5,16 +5,29 @@
 
 #include <time.h>
 #include <stdarg.h>
-#include <Winsock2.h>
+#ifdef _WIN32
+	#include <Winsock2.h>
+#endif
 #include "Common.h"
 #include "Config.h"
 #include "LogWriter.h"
 #include "ConnectionPool.h"
+#include "Server.h"
 #include "vlr-service.h"
 
 
 LogWriter logWriter;
 
+void CloseSocket(int socket)
+{
+#ifdef WIN32
+	shutdown(socket, SD_BOTH);
+	closesocket(socket);
+#else
+	shutdown(socket, SHUT_RDWR);
+	close(socket);
+#endif
+}
 
 //int ExecuteRequest(uint64_t imsi, int nParamCount, char* pResult)
 //{
@@ -72,6 +85,155 @@ void printUsage(char* programName)
     std::cerr << "Usage: " << std::endl << programName << " <config-file> [-test]" << std::endl;
 }
 
+void RunKeyboardTests(ConnectionPool& connectionPool)
+{
+	char c;
+	while (true) {
+		std::cout << "Choose IMSI: 1-2 - correct, 3 - unregistered, 4 - roaming, 9 - wrong (too long), q - quit: ";
+		std::cin >> c;
+		if (c == 'q' || c == 'Q') {
+			break;
+		}
+		
+		ClientRequest clientRequest(0);
+		clientRequest.requestNum = 1;
+		switch (c) {
+		case '1':
+			clientRequest.requestType = stateQuery;
+			clientRequest.imsi = 250270100520482;
+			break;
+		case '2':
+			clientRequest.requestType = stateQuery;
+			clientRequest.imsi = 250270100307757;
+			break;
+		case '3':
+			clientRequest.requestType = stateQuery;
+			clientRequest.imsi = 250270100273000;
+			break;
+		case '4':
+			clientRequest.requestType = stateQuery;
+			clientRequest.imsi = 250270100604804;
+			break;
+		case '9':
+			clientRequest.requestType = stateQuery;
+			clientRequest.imsi = 25027010052048200;
+			break;
+		default:
+			std::cout << "Wrong option entered, try again" << std::endl;
+			continue;
+		}
+		unsigned int connIndex;
+		if (!connectionPool.TryAcquire(connIndex)) {
+			std::cout << "Unable to acqure connection for request execution." << std::endl;
+			continue;
+		}
+		std::cout << "Acquired connection #" + std::to_string(connIndex) << std::endl;
+		std::string resultDescr;
+		
+		int requestRes = connectionPool.ExecRequest(connIndex, clientRequest);
+		std::cout << "Result: " << requestRes << " (" << resultDescr << ")" << std::endl;
+	}
+}
+
+//
+//bool ProcessIncomingConnection()
+//{
+//    #ifdef WIN32
+//      int clilen;
+//    #else
+//      socklen_t clilen;
+//    #endif
+//    struct sockaddr_in newclient_addr;
+//    char address_buffer[64];
+//    clilen = sizeof(newclient_addr);
+//    int newsockfd = accept(listen_socket, (struct sockaddr *)&newclient_addr, &clilen);
+//    if (newsockfd < 0) {
+//       log("Failed to call accept on socket: %d", SOCK_ERR);
+//       return false;
+//    }
+//
+//    log("Incoming connection from %s",IPAddr2Text(&newclient_addr.sin_addr, address_buffer, sizeof(address_buffer)));
+//
+//    int freeSocketIndex = NO_FREE_CONNECTIONS;
+//    for(int i=0; i < gwOptions.max_connections; i++) {
+//        if(client_socket[i] == 0) {
+//            freeSocketIndex = i;
+//            break;
+//        }
+//    }
+//    if (freeSocketIndex == NO_FREE_CONNECTIONS || bShutdownInProgress) {
+//        if(freeSocketIndex == NO_FREE_CONNECTIONS) {
+//            log("Maximum allowed connections reached. Rejecting connection...");
+//        }
+//        else {
+//            log("Shutdown in progress. Rejecting connection...");
+//        }
+//        CloseSocket(newsockfd);
+//        return false;
+//    }
+//    if(gwOptions.allowed_clients_num > 0) {
+//        bool bConnectionAllowed = false;
+//        // check connection for white list of allowed clients
+//        for(int j=0; j < gwOptions.allowed_clients_num; j++)
+//            if(!strcmp(gwOptions.allowed_IP[j], address_buffer)) {
+//                bConnectionAllowed=true;
+//                break;
+//            }
+//        if(!bConnectionAllowed) {
+//            log("Client address %s not found in white list of allowed IPs. Rejecting connection...",address_buffer);
+//            CloseSocket(newsockfd);
+//            return false;
+//        }
+//    }
+//
+//    client_socket[freeSocketIndex] = newsockfd;
+//    memcpy(&client_addr[freeSocketIndex], &newclient_addr, sizeof(newclient_addr));
+//    log("Connection #%d accepted.", freeSocketIndex);
+//    return true;
+//}
+//
+//bool ProcessSocketEvents()
+//{
+//    struct timeval tv;
+//    tv.tv_sec = 0;  // time-out
+//    tv.tv_usec = 100;
+//    fd_set read_set, write_set;
+//    FD_ZERO( &read_set );
+//    FD_ZERO( &write_set );
+//    FD_SET( listen_socket, &read_set );
+//    int max_socket = listen_socket;
+//    for(size_t i = 0; i < gwOptions.max_connections; i++) {
+//        if(client_socket[i] != FREE_SOCKET) {
+//            FD_SET( client_socket[i], &read_set );
+//            if(client_socket[i] > max_socket)
+//                max_socket=client_socket[i];
+//        }
+//    }
+//    const int SELECT_TIMEOUT = 0;
+//    int socketCount;
+//    if ( (socketCount = select( max_socket + 1, &read_set, &write_set, NULL, &tv )) != SELECT_TIMEOUT) {
+//        if(socketCount == SOCKET_ERROR) {
+//            log("select function returned error: %d", SOCK_ERR);
+//            return false;
+//        }
+//        if(FD_ISSET(listen_socket, &read_set)) {
+//            ProcessIncomingConnection();
+//        }
+//        for(int sockIndex=0; sockIndex < gwOptions.max_connections; sockIndex++) {
+//          if(FD_ISSET(client_socket[sockIndex], &read_set)) {
+//              if (!ProcessIncomingData(sockIndex)) {
+//                  log("Error %d receiving data on connection #%d. Closing connection..." , SOCK_ERR, sockIndex);
+//                  CloseSocket(client_socket[sockIndex]);
+//                  client_socket[sockIndex] = FREE_SOCKET;
+//                  continue;
+//              }
+//          }
+//       }
+//    }
+//    return true;
+//}
+
+
 int main(int argc, char* argv[])
 {
 	if (argc < 2) {
@@ -99,7 +261,7 @@ int main(int argc, char* argv[])
 		exit(EXIT_FAILURE);
     }
 #ifndef _WIN32
-    const std::string pidFilename = "/var/run/pgw-aggregator.pid";
+    const std::string pidFilename = "/var/run/vlr-service.pid";
     std::ofstream pidFile(pidFilename, std::ofstream::out);
     if (pidFile.is_open()) {
         pidFile << getpid();
@@ -118,70 +280,15 @@ int main(int argc, char* argv[])
 			std::cerr << "Unable to initialize connection pool: " << errDescription << ". Exiting." << std::endl;
 			exit(EXIT_FAILURE);
 		}
+				
+		Server server(config.serverPort, connectionPool);
+				
 		std::cout << "VLR service started. See log files at LOG_DIR for further details" << std::endl;
-		
 		if (runTests) {
-			char c;
-			while (true) {
-				std::cout << "Choose IMSI: 1-2 - correct, 3 - unregistered, 4 - roaming, 9 - wrong (too long), q - quit: ";
-				std::cin >> c;
-				if (c == 'q' || c == 'Q') {
-					break;
-				}
-				RequestType requestType;
-				uint64_t imsi;
-				switch (c) {
-				case '1':
-					requestType = stateQuery;
-					imsi = 250270100520482;
-					break;
-				case '2':
-					requestType = stateQuery;
-					imsi = 250270100293873;
-					break;
-				case '3':
-					requestType = stateQuery;
-					imsi = 250270100273000;
-					break;
-				case '4':
-					requestType = stateQuery;
-					imsi = 250270100604804;
-					break;
-				case '9':
-					requestType = stateQuery;
-					imsi = 25027010052048200;
-					break;
-				default:
-					std::cout << "Wrong option entered, try again" << std::endl;
-					continue;
-				}
-				unsigned int connIndex;
-				if (!connectionPool.TryAcquire(connIndex)) {
-					std::cout << "Unable to acqure connection for request execution." << std::endl;
-					continue;
-				}
-				std::cout << "Acquired connection #" + std::to_string(connIndex) << std::endl;
-				std::string resultDescr;
-				int requestRes = connectionPool.ExecRequest(connIndex, imsi, requestType, resultDescr);
-				std::cout << "Result: " << requestRes << " (" << resultDescr << ")" << std::endl;
-			}
-			/*std::cout << "Running multithreaded test in " << config.connectionCount << " threads ..." << std::endl;
-			std::vector<std::thread> cmdSenderThreads;
-			for (int i = 0; i < config.connectionCount; i++) {
-				cmdSenderThreads.push_back(std::thread(TestCommandSender, i, 20, 1));
-				// run next thread after a random time-out
-				std::this_thread::sleep_for(std::chrono::seconds(rand() % 2));
-			}
-			for (auto& thr : cmdSenderThreads) {
-				thr.join();
-			}
-			std::cout << "*****************************" << std::endl;
-			std::cout << "Multi-threaded test PASSED. Check log file written at logpath." << std::endl;
-			std::cout << "Running reconnect test ..." << std::endl;
-			std::thread reconnectTest(TestCommandSender, 0, 3, 310);
-			reconnectTest.join();
-			std::cout << "*****************************" << std::endl;
-			std::cout << "Reconnect test PASSED. Check log file. There must be a message like \"Restoring connection\"" << std::endl;*/
+			RunKeyboardTests(connectionPool);
+		}
+		else {
+			server.Run();
 		}
 		
 	}
@@ -190,7 +297,10 @@ int main(int argc, char* argv[])
 		logWriter << std::string(ex.what()) +  ". Exiting.";
 	}
 	logWriter << "Closing connections and stopping.";
-	
+#ifdef _WIN32
+	WSACleanup();
+#endif
+
 #ifndef _WIN32
 	filesystem::remove(pidFilename);
 #endif

@@ -3,11 +3,6 @@
 #include <chrono>
 #include <thread>
 #include <string>
-#ifdef _WIN32
-#include <Winsock2.h>
-#include <windows.h>
-#endif
-
 #include "Config.h"
 #include "ConnectionPool.h"
 #include "LogWriter.h"
@@ -17,6 +12,7 @@
 #endif
 
 extern LogWriter logWriter;
+extern void CloseSocket(int socket);
 
 ConnectionPool::ConnectionPool(const Config& config) :
 	m_config(config),
@@ -28,14 +24,8 @@ ConnectionPool::ConnectionPool(const Config& config) :
 
 ConnectionPool::~ConnectionPool()
 {
-		for(auto& socket : m_sockets) {
-#ifdef WIN32
-			shutdown(socket, SD_BOTH);
-			closesocket(socket);
-#else
-			shutdown(socket, SHUT_RDWR);
-			close(socket);
-#endif
+	for(auto& socket : m_sockets) {
+		CloseSocket(socket);
 	}
 	m_stopFlag = true;
 	for (int i = 0; i < m_config.connectionCount; ++i) {
@@ -45,9 +35,7 @@ ConnectionPool::~ConnectionPool()
 		if (thr.joinable())
 			thr.join();
 	}
-#ifdef _WIN32
-	WSACleanup();
-#endif
+
 }
 
 
@@ -134,14 +122,8 @@ bool ConnectionPool::LoginToHLR(unsigned int index, std::string& errDescription)
 			tv.tv_sec = 1;
 			tv.tv_usec = 0;
 			FD_ZERO( &read_set );
-			FD_ZERO( &error_set );
 			FD_SET( m_sockets[index], &read_set );
-			FD_SET( m_sockets[index], &error_set );
 			if (select( m_sockets[index] + 1, &read_set, NULL, &error_set, &tv ) != 0 ) {
-				if (FD_ISSET(m_sockets[index], &error_set )) {
-					errDescription = "LoginToHLR: Error on socket" + GetWinsockError();
-					return false;
-				}
 				// check for message
 				if (FD_ISSET( m_sockets[index], &read_set))  {
 					// receive some data from server
@@ -156,7 +138,7 @@ bool ConnectionPool::LoginToHLR(unsigned int index, std::string& errDescription)
 							recvbuf[bytesRecv] = STR_TERMINATOR;
 							logWriter.Write("LoginToHLR: HLR response: " + std::string(recvbuf), index+1, debug);
 							_strupr_s(recvbuf, receiveBufferSize);
-							if(strstr(recvbuf, "USERCODE:")) {
+							if(strstr(recvbuf, "LOGIN:")) {
 								// server asks for login
 								logWriter.Write("Sending username: " + m_config.username, debug);
 								sprintf_s((char*) sendbuf, sendBufferSize, "%s\r\n", m_config.username.c_str());
@@ -166,7 +148,6 @@ bool ConnectionPool::LoginToHLR(unsigned int index, std::string& errDescription)
 								}
 								continue;
 							}
-
 							if(strstr(recvbuf,"PASSWORD:")) {
 								// server asks for password
 								logWriter.Write("Sending password: " + m_config.password, index+1, debug);
@@ -177,7 +158,6 @@ bool ConnectionPool::LoginToHLR(unsigned int index, std::string& errDescription)
 								}
 								continue;
 							}
-
 							if(strstr(recvbuf,"DOMAIN:")) {
 								// server asks for domain
 								logWriter.Write("Sending domain: " + m_config.domain, index+1, debug);
@@ -188,7 +168,17 @@ bool ConnectionPool::LoginToHLR(unsigned int index, std::string& errDescription)
 								}
 								continue;
 							}
-							if(strstr(recvbuf,"\x03<")) {
+							if(strstr(recvbuf,"TERMINAL TYPE?")) {
+								// server asks for terminal type
+								logWriter.Write(std::string("Sending terminal type: ") + TERMINAL_TYPE, index+1, debug);
+								sprintf_s((char*)sendbuf, sendBufferSize, "%s\r\n", TERMINAL_TYPE);
+								if(send( m_sockets[index], sendbuf, strlen(sendbuf), 0 )==SOCKET_ERROR) {
+									errDescription = "Error sending data on socket" + GetWinsockError();
+									return false;
+								}
+								continue;
+							}
+							if(strstr(recvbuf, HLR_PROMPT)) {
 								return true;
 							}
 							if(strstr(recvbuf, "AUTHORIZATION FAILURE")) {
@@ -382,21 +372,14 @@ int ConnectionPool::ProcessDeviceResponse(unsigned int index, RequestedDevice re
 	char recvBuf[receiveBufferSize];
 	char hlrResponse[receiveBufferSize];
 	hlrResponse[0] = STR_TERMINATOR;
-
-	fd_set read_set, error_set;
+	fd_set read_set;
 	struct timeval tv;
 	while (!m_finished[index]) {
 		tv.tv_sec = SOCKET_TIMEOUT_SEC;
 		tv.tv_usec = 0;
 		FD_ZERO(&read_set);
-		FD_ZERO(&error_set);
 		FD_SET(m_sockets[index], &read_set);
-		FD_SET(m_sockets[index], &error_set);
-		if (select(m_sockets[index] + 1, &read_set, NULL, &error_set, &tv) != 0) {
-			if (FD_ISSET(m_sockets[index], &error_set)) {
-				errDescription = "Socket error when calling FD_ISSET" + GetWinsockError();
-				return NETWORK_ERROR;
-			}
+		if (select(m_sockets[index] + 1, &read_set, NULL, NULL, &tv) != 0) {
 			// check for message
 			if (FD_ISSET(m_sockets[index], &read_set)) {
 				// receive some data from server
@@ -413,9 +396,12 @@ int ConnectionPool::ProcessDeviceResponse(unsigned int index, RequestedDevice re
 						_strupr_s(recvBuf, receiveBufferSize);
 						strncat_s(hlrResponse, receiveBufferSize, recvBuf, bytesRecv + 1);
 						if (strstr(hlrResponse, "END"))  {
-							if (ResponseParser::Parse(requestedDevice, hlrResponse, m_imsis[index], m_config.homeVlrGt, errDescription) 
-									== success) {
+							ParseRes res = ResponseParser::Parse(requestedDevice, hlrResponse, *m_requests[index]);
+							if (res == success) {
 								return OPERATION_SUCCESS;
+							}
+							else if (res == infoNotComplete) {
+								return INFO_NOT_COMPLETE;
 							}
 							else {
 								return BAD_DEVICE_RESPONSE;
@@ -426,10 +412,11 @@ int ConnectionPool::ProcessDeviceResponse(unsigned int index, RequestedDevice re
 							return CMD_NOTEXECUTED;
 						}
 						if (strstr(hlrResponse, deviceCommand.c_str())
-								&& !strcmp(hlrResponse + strlen(hlrResponse) - 2, "\x03<")) {
+								&& !strcmp(hlrResponse + strlen(hlrResponse) - 2, "HLR_PROMPT")) {
 							// if HLR answers with echo and prompt then send ';'
-							logWriter.Write("Command echo received. Sending ';' ...", index, debug);
-							if (send(m_sockets[index], ";\r\n", 3, 0) == SOCKET_ERROR) {
+							logWriter.Write("Command echo received. Sending CRLF ...", index, debug);
+							const char* crlf = "\r\n";
+							if (send(m_sockets[index], crlf, strlen(crlf), 0) == SOCKET_ERROR) {
 								errDescription = "Socket error when sending data" + GetWinsockError();
 								return NETWORK_ERROR;
 							}
@@ -510,15 +497,15 @@ void ConnectionPool::WorkerThread(unsigned int index)
 		if (!m_stopFlag && m_busy[index] && !m_finished[index]) {
 			std::string errDescription;
 			try {
-				std::string deviceCommand = "MGSSP: IMSI=" + std::to_string(m_imsis[index]) + ";";
+				std::string deviceCommand = "MGSSP: IMSI=" + std::to_string(m_requests[index]->imsi) + ";";
 				logWriter.Write("Sending request: " + deviceCommand, index);
 				int res = SendCommandToDevice(index, deviceCommand, errDescription);
 				if (res == OPERATION_SUCCESS) {
 					res = ProcessDeviceResponse(index, VLR, deviceCommand, errDescription);
-					if (res == OPERATION_SUCCESS /*TODO: uncomment && errDescription == "NOTREG"*/) {
-						logWriter.Write("VLR returned NOTREG value, sending request to HLR ...", index);
+					if (res == INFO_NOT_COMPLETE) {
+						logWriter.Write("VLR returned not complete information, sending request to HLR ...", index);
 						// We have to check if subscriber is roaming. For that we will ask HLR for current VLR address
-						deviceCommand = "HGSDP: IMSI=" + std::to_string(m_imsis[index]) + ", LOC;";
+						deviceCommand = "HGSDP: IMSI=" + std::to_string(m_requests[index]->imsi) + ", LOC;";
 						logWriter.Write("Sending request: " + deviceCommand, index);
 						res = SendCommandToDevice(index, deviceCommand, errDescription);
 						if (res == OPERATION_SUCCESS) {
@@ -585,19 +572,13 @@ bool ConnectionPool::TryAcquire(unsigned int& index)
 }
 
 
-int ConnectionPool::ExecRequest(unsigned int index, uint64_t imsi, RequestType requestType, std::string& resultDescr)
+int8_t ConnectionPool::ExecRequest(unsigned int index, ClientRequest& clientRequest)
 {
-	if (requestType == stateQuery) {
-		//m_tasks[index] = "MGSSP: IMSI=" + std::to_string(imsi) + ";";
-	}
-	else {
-		resultDescr = "Not implemented";
+	if (clientRequest.requestType != stateQuery) {
+		clientRequest.resultDescr = "Not implemented";
 		return CMD_UNKNOWN;
 	}
-	m_requests[index] = requestType;
-	m_imsis[index] = imsi;
-
-	//logWriter.Write("Sending command: " + m_tasks[index], index);
+	m_requests[index] = &clientRequest;
 	m_condVars[index].notify_one();
 	
 	std::unique_lock<std::mutex> locker(m_mutexes[index]);
@@ -606,8 +587,8 @@ int ConnectionPool::ExecRequest(unsigned int index, uint64_t imsi, RequestType r
 	}
 	int resultCode = m_resultCodes[index];
 	logWriter.Write("response length: " + std::to_string(m_results[index].length()), index, debug);
-	resultDescr = m_results[index];
-	logWriter.Write("result length: " + std::to_string(resultDescr.length()), index, debug);
+	clientRequest.resultDescr = m_results[index];
+	logWriter.Write("result length: " + std::to_string(clientRequest.resultDescr.length()), index, debug);
 	m_busy[index] = false;
 	return resultCode;
 }

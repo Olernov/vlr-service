@@ -11,14 +11,13 @@ ResponseParser::~ResponseParser()
 }
 
 
-ParseRes ResponseParser::Parse(RequestedDevice requestedDevice, const char* response, uint64_t imsi, 
-		const std::string& homeVlrGt, std::string& result)
+ParseRes ResponseParser::Parse(RequestedDevice requestedDevice, const char* response, ClientRequest& clientRequest)
 {
 	if (requestedDevice == VLR) {
-		return ParseVLRResponse(response, result);
+		return ParseVLRResponse(response, clientRequest);
 	}
 	else if (requestedDevice == HLR) {
-		return ParseHLRResponse(response, imsi, homeVlrGt, result);
+		return ParseHLRResponse(response, clientRequest);
 	}
 	else {
 		return failure;
@@ -26,7 +25,7 @@ ParseRes ResponseParser::Parse(RequestedDevice requestedDevice, const char* resp
 }
 
 
-ParseRes ResponseParser::ParseVLRResponse(const char* response, std::string& result)
+ParseRes ResponseParser::ParseVLRResponse(const char* response, ClientRequest& clientRequest)
 {
 	const char* end = response + strlen(response) - 1;
 	if (!TryToSkipSubstring("SUBSCRIBER DETAILS", response)) {
@@ -45,64 +44,93 @@ ParseRes ResponseParser::ParseVLRResponse(const char* response, std::string& res
 		return failure;
 	}
 	size_t SecondFieldLen = strcspn(response, " \t\r\n");
+	std::string result;
 	// There may be either MSISDN or STATE in 2nd field. If there are digits only, we
 	// suppose this is MSISDN, otherwise we consider it as STATE
-	if (!AllCharsAreDigits(response, SecondFieldLen)) {
+	if (AllCharsAreDigits(response, SecondFieldLen)) {
+		// skip 2nd field (probably MSISDN)
+		response += SecondFieldLen;
+		if (!TryToSkipDelimiters(response, end)) {
+			return failure;
+		}
+		size_t ThirdFieldLen = strcspn(response, " \t\r\n");
+		result.resize(ThirdFieldLen);
+		std::copy(response, response + ThirdFieldLen, result.begin());
+	}
+	else {
 		result.resize(SecondFieldLen);
-		std::copy(response, response + SecondFieldLen, result.begin());
+		std::copy(response, response + SecondFieldLen, result.begin());		
+	}
+	
+	if (!result.compare("NOTREG")) {
+		return infoNotComplete;
+	}
+	clientRequest.subscriberState = connected;
+	if (!result.compare("IDLE")) {
+		clientRequest.subscriberState = connected;
+		clientRequest.subscriberOnline = offline;
 		return success;
 	}
-	// skip 2nd field (probably MSISDN)
-	response += SecondFieldLen;
-	if (!TryToSkipDelimiters(response, end)) {
+	else if(!result.compare("BUSY")) {
+		clientRequest.subscriberState = connected;
+		clientRequest.subscriberOnline = online;
+		return success;
+	}
+	else {
+		clientRequest.resultDescr = "Unknown subscriber state in VLR: " + result;
 		return failure;
 	}
-	size_t ThirdFieldLen = strcspn(response, " \t\r\n");
-	result.resize(ThirdFieldLen);
-	std::copy(response, response + ThirdFieldLen, result.begin());
-	return success;
 }
 
 
-ParseRes ResponseParser::ParseHLRResponse(const char* response, uint64_t imsi, const std::string& homeVlrGt, std::string& result)
+ParseRes ResponseParser::ParseHLRResponse(const char* response, ClientRequest& clientRequest)
 {
 	const char* end = response + strlen(response) - 1;
 	if (!TryToSkipSubstring("HLR SUBSCRIBER DATA", response)) {
+		clientRequest.resultDescr = "HLR SUBSCRIBER DATA not found in HLR response";
 		return failure;
 	}
 	if (!TryToSkipSubstring("MSISDN           IMSI             STATE          AUTHD", response)) {
+		clientRequest.resultDescr = "Unknown format of HLR response";
 		return failure;
 	}
 	if (!TryToSkipDelimiters(response, end)) {
+		clientRequest.resultDescr = "Unknown format of HLR response";
 		return failure;
 	}
 	// try to find IMSI in next line of response and skip it. 
 	// Next field after IMSI should be STATE
 	char imsiStr[20];
-	snprintf(imsiStr, sizeof(imsiStr), "%llu", imsi);
+	snprintf(imsiStr, sizeof(imsiStr), "%llu", clientRequest.imsi);
 	if (!TryToSkipSubstring(imsiStr, response)) {
+		clientRequest.resultDescr = "Unknown format of HLR response";
 		return failure;
 	}
 
 	// One of states: CONNECTED or NOT CONNECTED should be in response.
 	// Otherwise return failure.
+	//std::string result;
 	if (strstr(response, "NOT CONNECTED")) {
-		result = "NOT CONNECTED";
+		clientRequest.subscriberState = notConnected;
 		return success;
 	}
 	if (!strstr(response, "CONNECTED")) {
+		clientRequest.resultDescr = "Unknown subscriber state in HLR";
 		return failure;
 	}
 	if (!TryToSkipSubstring("LOCATION DATA", response)) {
+		clientRequest.resultDescr = "LOCATION DATA not found in HLR response";
 		return failure;
 	}
 	if (!TryToSkipSubstring("VLR ADDRESS       MSRN            MSC NUMBER          LMSID", response)) {
+		clientRequest.resultDescr = "VLR address not found in HLR response";
 		return failure;
 	}
 	if (!TryToSkipDelimiters(response, end)) {
+		clientRequest.resultDescr = "Unknown format of HLR response";
 		return failure;
 	}
-	return ParseVlrAddr(response, homeVlrGt, result);
+	return ParseVlrAddr(response, clientRequest);
 }
 
 
@@ -140,7 +168,7 @@ bool ResponseParser::TryToSkipDelimiters(const char*& str, const char* end)
 }
 
 
-ParseRes ResponseParser::ParseVlrAddr(const char* response, const std::string& homeVlrGt, std::string& result)
+ParseRes ResponseParser::ParseVlrAddr(const char* response, ClientRequest& clientRequest)
 {
 	int vlrLength = strcspn(response, " \t\r\n");
 	char vlr[30];
@@ -157,21 +185,19 @@ ParseRes ResponseParser::ParseVlrAddr(const char* response, const std::string& h
 	 RESTRICTED Location restricted
 	 BARRED Location barred */
 	if (!strcmp(vlr, "UNKNOWN") || !strcmp(vlr, "RESTRICTED") || !strcmp(vlr, "BARRED")) {
-		result = vlr;
+		clientRequest.subscriberState = roaming;
+		clientRequest.vlrAddress = 0;
 		return success;
 	}
 	
 	const char* vlrAddr = strchr(vlr, '-');
 	if (!vlrAddr) {
+		clientRequest.resultDescr = std::string("Unable to parse VLR address: ") + vlr;
 		return failure;
 	}
 	vlrAddr++;
-	if (strcmp(vlrAddr, homeVlrGt.c_str())) {
-		result = "ROAMING (" + std::string(vlrAddr) + ")";
-	}
-	else {
-		result = vlrAddr;
-	}
+	clientRequest.subscriberState = roaming;
+	clientRequest.vlrAddress = strtoull(vlrAddr, nullptr, 10);
 	return success;
 }
 
@@ -186,7 +212,7 @@ void ResponseParser::StripHLRResponse(char* start, std::string& result)
 		end--;
 	}
 	if ((end > start) && (end < responseEnd)) {
-		*(end + 1) = '\0';
+		*(end + 1) = STR_TERMINATOR;
 	}
 
 	// replace \r and \n with spaces 
@@ -194,6 +220,9 @@ void ResponseParser::StripHLRResponse(char* start, std::string& result)
 		if (*p3 == '\r' || *p3 == '\n') {
 			*p3 = ' ';
 		}
+	}
+	if (!strcmp(start + strlen(start) - 2, HLR_PROMPT)) {
+		start[strlen(start) - 2] = STR_TERMINATOR;
 	}
 	result = start;
 }

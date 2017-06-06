@@ -1,3 +1,4 @@
+#pragma once
 #include <stdio.h>
 #include <string>
 #include <iostream>
@@ -17,11 +18,11 @@ public:
 
     std::string vlrAddr;
 	unsigned int vlrPort;
+	unsigned int serverPort;
     std::string username;
     std::string password;
     std::string domain;
-	std::string homeVlrGt;
-    std::string logDir;
+	std::string logDir;
     std::string cdrExtension;
 	unsigned short connectionCount;
     LogLevel logLevel;
@@ -34,6 +35,7 @@ private:
     const std::string connectionCountParamName = "CONNECTION_COUNT";
     const std::string logLevelParamName = "LOG_LEVEL";
     const std::string homeVlrGtParamName = "HOME_VLR_GLOBAL_TITLE";
+	const std::string serverPortParamName = "SERVER_PORT";
     const int minConnCount = 1;
     const int maxConnCount = 16;
     unsigned long ParseULongValue(const std::string& name, const std::string& value);

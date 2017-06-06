@@ -53,7 +53,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>C:\Projects\boost_1_61_0</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Projects\boost_1_61_0; C:\Projects\PolicyServer\utils\src\utils\pspacket; C:\Projects\PolicyServer\utils\src\utils</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -69,7 +69,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>C:\Projects\boost_1_61_0</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Projects\boost_1_61_0; C:\Projects\PolicyServer\utils\src\utils\pspacket; C:\Projects\PolicyServer\utils\src\utils</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -82,18 +82,23 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ClientConnection.h" />
     <ClInclude Include="Common.h" />
     <ClInclude Include="Config.h" />
     <ClInclude Include="ConnectionPool.h" />
     <ClInclude Include="LogWriter.h" />
     <ClInclude Include="ResponseParser.h" />
+    <ClInclude Include="Server.h" />
     <ClInclude Include="vlr-service.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\PolicyServer\utils\src\utils\pspacket\pspacket.cpp" />
+    <ClCompile Include="ClientConnection.cpp" />
     <ClCompile Include="Config.cpp" />
     <ClCompile Include="ConnectionPool.cpp" />
     <ClCompile Include="LogWriter.cpp" />
     <ClCompile Include="ResponseParser.cpp" />
+    <ClCompile Include="Server.cpp" />
     <ClCompile Include="vlr-service.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
