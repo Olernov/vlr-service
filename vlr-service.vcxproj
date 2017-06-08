@@ -83,6 +83,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ClientConnection.h" />
+    <ClInclude Include="ClientRequest.h" />
     <ClInclude Include="Common.h" />
     <ClInclude Include="Config.h" />
     <ClInclude Include="ConnectionPool.h" />
@@ -94,6 +95,7 @@
   <ItemGroup>
     <ClCompile Include="..\..\PolicyServer\utils\src\utils\pspacket\pspacket.cpp" />
     <ClCompile Include="ClientConnection.cpp" />
+    <ClCompile Include="ClientRequest.cpp" />
     <ClCompile Include="Config.cpp" />
     <ClCompile Include="ConnectionPool.cpp" />
     <ClCompile Include="LogWriter.cpp" />

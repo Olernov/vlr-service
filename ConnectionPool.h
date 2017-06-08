@@ -75,7 +75,7 @@ private:
 	void TelnetParse(unsigned char* recvbuf, int* bytesRecv, int socketFD);
 	void FinishWithNetworkError(std::string logMessage, unsigned int index);
 	int SendCommandToDevice(unsigned int index, std::string hlrCommand, std::string& errDescription);
-	int ProcessDeviceResponse(unsigned int index, RequestedDevice requestedDevice,
+	int ProcessDeviceResponse(unsigned int index, RequestedDevice requestedDevice, RequestType requestType,
 		std::string deviceCommand, std::string& errDescription);
 	std::string GetWinsockError();
 };

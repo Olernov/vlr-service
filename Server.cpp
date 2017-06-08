@@ -166,7 +166,7 @@ int Server::ProcessNextRequestFromBuffer(int socket, const char* buffer, int max
     }
 	logWriter.Write("Request number " + std::to_string(requestNum) + " received.", mainThreadIndex, debug);
 	ClientRequest clientRequest(socket);
-	if (!ValidateAndSetRequestParams(requestNum, requestAttrs, clientRequest, errorDescr)) {
+	if (!clientRequest.ValidateAndSetRequestParams(requestNum, requestAttrs, clientRequest, errorDescr)) {
 		logWriter.Write(errorDescr, mainThreadIndex, error);
 		SendNotAcceptedResponse(socket, requestNum, errorDescr);
 		return packetLen;
@@ -181,87 +181,15 @@ int Server::ProcessNextRequestFromBuffer(int socket, const char* buffer, int max
 	}
 	logWriter.Write("Acquired connection #" + std::to_string(connIndex), mainThreadIndex, debug);
 	clientRequest.resultCode = connectionPool.ExecRequest(connIndex, clientRequest);
-	std::stringstream ss;
-	ss << "Result: " << clientRequest.resultCode << " (" << clientRequest.resultDescr << ")";
-
-	logWriter << ss.str();
-	SendRequestResultToClient(clientRequest);
+	logWriter << clientRequest.DumpResults();
+	if (!clientRequest.SendRequestResultToClient(errorDescr)) {
+		logWriter.Write("SendRequestResultToClient error: " + errorDescr, mainThreadIndex, error);
+	}
 	return packetLen;
 }
 
 
-bool Server::ValidateAndSetRequestParams(uint32_t requestNum, const std::multimap<__uint16_t, SPSReqAttrParsed>& requestAttrs, 
-	ClientRequest& clientRequest, std::string& errorDescr)
-{
-	clientRequest.requestNum = requestNum;
-	auto iter = requestAttrs.find(VLR_GATEWAY_COMMAND);
-	if (iter == requestAttrs.end()) {
-		errorDescr  = "VLR command type is missing in request";
-		return false;
-	}
-	if (iter->second.m_usDataLen != 1) {
-		errorDescr  = "VLR command type param has incorrect size " + std::to_string(iter->second.m_usDataLen) +
-			". Its size must be 1 byte.";
-		return false;
-	}
-	uint8_t rt = *static_cast<uint8_t*>(iter->second.m_pvData);
-	clientRequest.requestType = static_cast<RequestType>(rt);
-
-	iter = requestAttrs.find(VLR_GATEWAY_IMSI);
-	if (iter == requestAttrs.end()) {
-		errorDescr  = "IMSI is missing in request";
-		return false;
-	}
-	if (iter->second.m_usDataLen != 8) {
-		errorDescr  = "IMSI param has incorrect size " + std::to_string(iter->second.m_usDataLen) +
-			". Its size must be 8 bytes.";
-		return false;
-	}
-	clientRequest.imsi = ntohll(*static_cast<uint64_t*>(iter->second.m_pvData));
-	return true;
-}
-
-
-bool Server::SendRequestResultToClient(const ClientRequest& clientRequest)
-{
-	CPSPacket pspResponse;
-	char buffer[2014];
-    if(pspResponse.Init(reinterpret_cast<SPSRequest*>(buffer), sizeof(buffer), clientRequest.requestNum, COMMAND_RSP) != 0) {
-        logWriter.Write("SendRequestResultToClient error: initializing response buffer failed", mainThreadIndex, error);
-        return false;
-    }
-
-	unsigned long len = pspResponse.AddAttr(reinterpret_cast<SPSRequest*>(buffer), sizeof(buffer), 
-			PS_RESULT, &clientRequest.resultCode, sizeof(clientRequest.resultCode));
-	if (clientRequest.resultCode == OPERATION_SUCCESS) {
-		uint8_t state = clientRequest.subscriberState;
-		len = pspResponse.AddAttr(reinterpret_cast<SPSRequest*>(buffer), sizeof(buffer), 
-			VLR_GATEWAY_STATE, &state, sizeof(state));
-		if (clientRequest.subscriberState == connected) {
-			uint8_t online = clientRequest.subscriberOnline;
-			len = pspResponse.AddAttr(reinterpret_cast<SPSRequest*>(buffer), sizeof(buffer), 
-				VLR_GATEWAY_ONLINE_STATUS, &online, sizeof(online));
-		}
-		else if (clientRequest.subscriberState == roaming) {
-			uint64_t vlrAddr = htonll(clientRequest.vlrAddress);
-			len = pspResponse.AddAttr(reinterpret_cast<SPSRequest*>(buffer), sizeof(buffer),
-				VLR_GATEWAY_VLR_ADDRESS, &vlrAddr, sizeof(vlrAddr));
-		}
-	}
-	else {
-		len = pspResponse.AddAttr(reinterpret_cast<SPSRequest*>(buffer), sizeof(buffer),
-			PS_DESCR, clientRequest.resultDescr.data(), clientRequest.resultDescr.size());
-	}
-
-	if(send(clientRequest.socket, buffer, len, 0) <= 0) {
-        logWriter.Write("SendRequestResultToClient error: socket error " + std::to_string(WSAGetLastError()), mainThreadIndex, error);
-        return false;
-    }
-	return true;
-}
-
-
-bool Server::SendNotAcceptedResponse (int socket, uint32_t requestNum,  std::string errDescr)
+bool Server::SendNotAcceptedResponse(int socket, uint32_t requestNum,  std::string errDescr)
 {
 	CPSPacket pspResponse;
 	char buffer[2014];

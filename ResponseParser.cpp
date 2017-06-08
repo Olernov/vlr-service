@@ -65,7 +65,6 @@ ParseRes ResponseParser::ParseVLRResponse(const char* response, ClientRequest& c
 	if (!result.compare("NOTREG")) {
 		return infoNotComplete;
 	}
-	clientRequest.subscriberState = connected;
 	if (!result.compare("IDLE")) {
 		clientRequest.subscriberState = connected;
 		clientRequest.subscriberOnline = offline;
@@ -74,6 +73,11 @@ ParseRes ResponseParser::ParseVLRResponse(const char* response, ClientRequest& c
 	else if(!result.compare("BUSY")) {
 		clientRequest.subscriberState = connected;
 		clientRequest.subscriberOnline = online;
+		return success;
+	}
+	else if(!result.compare("DET")) {
+		clientRequest.subscriberState = notConnected;
+		clientRequest.subscriberOnline = offline;
 		return success;
 	}
 	else {
@@ -185,8 +189,7 @@ ParseRes ResponseParser::ParseVlrAddr(const char* response, ClientRequest& clien
 	 RESTRICTED Location restricted
 	 BARRED Location barred */
 	if (!strcmp(vlr, "UNKNOWN") || !strcmp(vlr, "RESTRICTED") || !strcmp(vlr, "BARRED")) {
-		clientRequest.subscriberState = roaming;
-		clientRequest.vlrAddress = 0;
+		clientRequest.subscriberState = notConnected;
 		return success;
 	}
 	

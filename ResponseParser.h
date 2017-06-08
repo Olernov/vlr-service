@@ -2,6 +2,7 @@
 #include <string>
 #include "stdint.h"
 #include "Common.h"
+#include "ClientRequest.h"
 
 enum RequestedDevice {
 	VLR,

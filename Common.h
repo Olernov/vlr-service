@@ -47,36 +47,5 @@ const std::string crlf = "\n";
 #endif
 
 
-enum RequestType {
-	stateQuery = 0,
-	resetRequest = 1
-};
-
-enum SubscriberState
-{
-	notConnected = 0,
-	connected = 1,
-	roaming = 2
-};
-
-enum SubscriberOnline
-{
-	offline = 0,
-	online = 1	
-};
 
 
-struct ClientRequest
-{
-	ClientRequest(int socket) : socket(socket), vlrAddress(0) {}
-
-	RequestType requestType;
-	uint32_t requestNum;
-	uint64_t imsi;
-	int socket;
-	int8_t resultCode;
-	SubscriberState subscriberState;
-	SubscriberOnline subscriberOnline; 
-	uint64_t vlrAddress; 
-	std::string resultDescr;
-};

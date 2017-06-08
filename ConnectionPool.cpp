@@ -366,7 +366,7 @@ int ConnectionPool::SendCommandToDevice(unsigned int index, std::string deviceCo
 }
 
 
-int ConnectionPool::ProcessDeviceResponse(unsigned int index, RequestedDevice requestedDevice, 
+int ConnectionPool::ProcessDeviceResponse(unsigned int index, RequestedDevice requestedDevice, RequestType requestType,
 	std::string deviceCommand, std::string& errDescription)
 {
 	char recvBuf[receiveBufferSize];
@@ -395,7 +395,7 @@ int ConnectionPool::ProcessDeviceResponse(unsigned int index, RequestedDevice re
 						logWriter.Write(std::string("HLR response: ") + recvBuf, index, debug);
 						_strupr_s(recvBuf, receiveBufferSize);
 						strncat_s(hlrResponse, receiveBufferSize, recvBuf, bytesRecv + 1);
-						if (strstr(hlrResponse, "END"))  {
+						if (requestType == stateQuery && strstr(hlrResponse, "END")) {							
 							ParseRes res = ResponseParser::Parse(requestedDevice, hlrResponse, *m_requests[index]);
 							if (res == success) {
 								return OPERATION_SUCCESS;
@@ -404,8 +404,12 @@ int ConnectionPool::ProcessDeviceResponse(unsigned int index, RequestedDevice re
 								return INFO_NOT_COMPLETE;
 							}
 							else {
+								errDescription = m_requests[index]->resultDescr;
 								return BAD_DEVICE_RESPONSE;
 							}
+						}
+						else if (requestType == resetRequest && strstr(hlrResponse, "EXECUTED"))  {
+							return OPERATION_SUCCESS;
 						}
 						if (char* p = strstr(hlrResponse, "NOT ACCEPTED")) {
 							ResponseParser::StripHLRResponse(p + strlen("NOT ACCEPTED"), errDescription);
@@ -497,25 +501,32 @@ void ConnectionPool::WorkerThread(unsigned int index)
 		if (!m_stopFlag && m_busy[index] && !m_finished[index]) {
 			std::string errDescription;
 			try {
-				std::string deviceCommand = "MGSSP: IMSI=" + std::to_string(m_requests[index]->imsi) + ";";
+				std::string deviceCommand;
+				if (m_requests[index]->requestType == stateQuery) {
+					deviceCommand = "MGSSP: IMSI=" + std::to_string(m_requests[index]->imsi) + ";";
+				}
+				else if (m_requests[index]->requestType == resetRequest) {
+					deviceCommand = "HGSLR: IMSI=" + std::to_string(m_requests[index]->imsi) + ";";
+				}
+				else {
+					// TODO: 
+				}
 				logWriter.Write("Sending request: " + deviceCommand, index);
 				int res = SendCommandToDevice(index, deviceCommand, errDescription);
 				if (res == OPERATION_SUCCESS) {
-					res = ProcessDeviceResponse(index, VLR, deviceCommand, errDescription);
-					if (res == INFO_NOT_COMPLETE) {
+					res = ProcessDeviceResponse(index, VLR, m_requests[index]->requestType, deviceCommand, errDescription);
+					if (m_requests[index]->requestType == stateQuery && res == INFO_NOT_COMPLETE) {
 						logWriter.Write("VLR returned not complete information, sending request to HLR ...", index);
 						// We have to check if subscriber is roaming. For that we will ask HLR for current VLR address
 						deviceCommand = "HGSDP: IMSI=" + std::to_string(m_requests[index]->imsi) + ", LOC;";
 						logWriter.Write("Sending request: " + deviceCommand, index);
 						res = SendCommandToDevice(index, deviceCommand, errDescription);
 						if (res == OPERATION_SUCCESS) {
-							res = ProcessDeviceResponse(index, HLR, deviceCommand, errDescription);
+							res = ProcessDeviceResponse(index, HLR, m_requests[index]->requestType, deviceCommand, errDescription);
 						}
 					}
 				}
 				logWriter.Write("Request processing finished.", index);
-				logWriter.Write("Result: " + std::to_string(res), index);
-				logWriter.Write("Description: " + errDescription, index);
 				m_resultCodes[index] = res;
 				m_results[index] = errDescription;
 			}
@@ -574,10 +585,6 @@ bool ConnectionPool::TryAcquire(unsigned int& index)
 
 int8_t ConnectionPool::ExecRequest(unsigned int index, ClientRequest& clientRequest)
 {
-	if (clientRequest.requestType != stateQuery) {
-		clientRequest.resultDescr = "Not implemented";
-		return CMD_UNKNOWN;
-	}
 	m_requests[index] = &clientRequest;
 	m_condVars[index].notify_one();
 	
@@ -586,9 +593,7 @@ int8_t ConnectionPool::ExecRequest(unsigned int index, ClientRequest& clientRequ
 		m_condVars[index].wait(locker);
 	}
 	int resultCode = m_resultCodes[index];
-	logWriter.Write("response length: " + std::to_string(m_results[index].length()), index, debug);
 	clientRequest.resultDescr = m_results[index];
-	logWriter.Write("result length: " + std::to_string(clientRequest.resultDescr.length()), index, debug);
 	m_busy[index] = false;
 	return resultCode;
 }

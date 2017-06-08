@@ -42,6 +42,9 @@
     <ClInclude Include="ClientConnection.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ClientRequest.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="vlr-service.cpp">
@@ -66,6 +69,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ClientConnection.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ClientRequest.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
