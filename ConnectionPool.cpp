@@ -215,8 +215,7 @@ bool ConnectionPool::LoginToHLR(unsigned int index, std::string& errDescription)
 bool ConnectionPool::Reconnect(unsigned int index, std::string& errDescription)
 {
 	logWriter.Write("Trying to reconnect ...", index);
-	shutdown(m_sockets[index], SD_BOTH);
-	closesocket(m_sockets[index]);
+	CloseSocket(m_sockets[index]);
 	m_connected[index] = false;
 	if(ConnectSocket(index, errDescription)) {
 		if(LoginToHLR(index, errDescription)) {
@@ -479,7 +478,13 @@ int ConnectionPool::RestoreConnectionIfNeeded(unsigned int index, std::string& e
 		recvBuf[bytesRecv]='\0';
 		logWriter.Write(std::string("HLR initiated response: ") + recvBuf, index);
 		_strupr_s(recvBuf, receiveBufferSize);
-		if(strstr(recvBuf, "TIME OUT") || strstr(recvBuf, "CONNECTION INTERRUPTED")) {
+		if (strstr(recvBuf, "LOGGED OFF")) {
+			logWriter.Write("LOGGED OFF message received, reconnecting ...", index);
+			if (!Reconnect(index, errDescription)) {
+				return NETWORK_ERROR;
+			}
+		}
+		else if (strstr(recvBuf, "TIME OUT") || strstr(recvBuf, "CONNECTION INTERRUPTED")) {
 			logWriter.Write("TIME OUT or CONNECTION INTERRUPTED report from HLR, restoring connection ...", index);
 			sprintf_s(sendBuf, sendBufferSize, "\r\n");
 			if(send(m_sockets[index],(char*) sendBuf, strlen(sendBuf), 0) == SOCKET_ERROR) {

@@ -75,7 +75,7 @@ ParseRes ResponseParser::ParseVLRResponse(const char* response, ClientRequest& c
 		clientRequest.subscriberOnline = online;
 		return success;
 	}
-	else if(!result.compare("DET")) {
+	else if(!result.compare("DET") || !result.compare("IDET")) {
 		clientRequest.subscriberState = notConnected;
 		clientRequest.subscriberOnline = offline;
 		return success;
