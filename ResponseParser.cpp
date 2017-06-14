@@ -176,7 +176,7 @@ ParseRes ResponseParser::ParseVlrAddr(const char* response, ClientRequest& clien
 {
 	int vlrLength = strcspn(response, " \t\r\n");
 	char vlr[30];
-	strncpy_s(vlr, sizeof(vlr), response, vlrLength);
+    strncpy(vlr, response, vlrLength);
 	vlr[sizeof(vlr) - 1] = STR_TERMINATOR;
 
 	/*	Visitor Location Register (VLR) address

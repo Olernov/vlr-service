@@ -60,11 +60,11 @@ private:
 	std::string m_namePrefix;
 	boost::lockfree::queue<LogMessage*> messageQueue;
 	std::atomic<bool> m_stopFlag;
-	std::thread m_writeThread;
-	std::mutex m_exceptionMutex;
+    std::mutex m_exceptionMutex;
     std::ofstream m_logStream;
 	std::string m_logFileDate;
     std::exception_ptr m_excPointer;
+    std::thread m_writeThread;
 
     void WriteThreadFunction();
     bool Write(LogMessage*);

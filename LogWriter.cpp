@@ -8,7 +8,7 @@ LogWriter::LogWriter() 	:
     messageQueue(queueSize),
     m_stopFlag(false),
     m_excPointer(nullptr),
-	m_writeThread(&LogWriter::WriteThreadFunction, this)
+    m_writeThread(&LogWriter::WriteThreadFunction, this)
 {
 }
 

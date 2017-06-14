@@ -1,8 +1,8 @@
 #pragma once
 #include <list>
 #include <map>
-#include "PS_Common.h"
-#include "PSPacket.h"
+#include "ps_common.h"
+#include "pspacket.h"
 #include "ConnectionPool.h"
 #include "ClientConnection.h"
 #include "ClientRequest.h"

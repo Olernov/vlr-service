@@ -72,8 +72,6 @@ void TestCommandSender(int index, int commandsNum, int minSleepTime)
 			break;
 		}
 		result[0] = '\0';
-		int res;
-//		res = ExecuteCommand(&task, NUM_OF_EXECUTE_COMMAND_PARAMS, result);
 		std::this_thread::sleep_for(std::chrono::seconds(minSleepTime + rand() % 3));
 		delete [] task;
 		delete [] result;
@@ -301,7 +299,5 @@ int main(int argc, char* argv[])
 	WSACleanup();
 #endif
 
-#ifndef _WIN32
-	filesystem::remove(pidFilename);
-#endif
+    remove(pidFilename.c_str());
 }

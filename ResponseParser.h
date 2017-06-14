@@ -65,8 +65,8 @@ public:
 	ResponseParser();
 	~ResponseParser();
 
-	static ParseRes ResponseParser::Parse(RequestedDevice requestedDevice, const char* response, ClientRequest& clientRequest);
-	static void ResponseParser::StripHLRResponse(char* start, std::string& result);
+    static ParseRes Parse(RequestedDevice requestedDevice, const char* response, ClientRequest& clientRequest);
+    static void StripHLRResponse(char* start, std::string& result);
 private:
 	static ParseRes ParseVLRResponse(const char* response, ClientRequest& clientRequest);
 	static ParseRes ParseHLRResponse(const char* response, ClientRequest& clientRequest);

@@ -2,7 +2,6 @@
 
 #include <chrono>
 #include <thread>
-#include <string>
 #include "Config.h"
 #include "ConnectionPool.h"
 #include "LogWriter.h"
@@ -10,6 +9,34 @@
 #ifdef _WIN32
 #pragma comment(lib, "ws2_32.lib")
 #endif
+
+#ifndef _WIN32
+    char* _strupr_s(char* s, size_t size)
+    {
+      const char* end = s + size;
+      char* p = s;
+      while ((*p != STR_TERMINATOR) && (p < end)) {
+          *p = toupper(*p);
+          p++;
+      }
+      return s;
+    }
+
+//    int strncat_s(char *dest, size_t destsz, const char *src, size_t count)
+//    {
+//        strncat(dest, src, count);
+//        return 0;
+//    }
+
+//    int strncpy_s(char* dest, size_t destsz,
+//                      const char* src, size_t count)
+//    {
+//        strncpy(dest, src,count);
+//        return 0;
+//    }
+
+#endif
+
 
 extern LogWriter logWriter;
 extern void CloseSocket(int socket);
@@ -44,8 +71,7 @@ bool ConnectionPool::Initialize(const Config& config, std::string& errDescriptio
 #ifdef WIN32
 	WSADATA wsaData;
 	if(WSAStartup(MAKEWORD(2,2), &wsaData)) {
-		// не удалось инициализировать WinSock
-		errDescription = "Error initializing Winsock: " + std::to_string(WSAGetLastError());
+        errDescription = "Error initializing Winsock: " + std::to_string(WSAGetLastError());
 		return false;
 	}
 #endif
@@ -76,7 +102,7 @@ bool ConnectionPool::Initialize(const Config& config, std::string& errDescriptio
 
 bool ConnectionPool::ConnectSocket(unsigned int index, std::string& errDescription)
 {
-	struct sockaddr_in addr;
+    struct sockaddr_in addr;
     m_sockets[index] = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (m_sockets[index] == INVALID_SOCKET) {
 		errDescription = "Error creating socket. " + GetWinsockError();
@@ -85,18 +111,17 @@ bool ConnectionPool::ConnectSocket(unsigned int index, std::string& errDescripti
 	memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
 	addr.sin_addr.s_addr = inet_addr(m_config.vlrAddr.c_str());
-	if (addr.sin_addr.s_addr==INADDR_NONE) {
+    if (addr.sin_addr.s_addr == INADDR_NONE) {
 		errDescription = "Error parsing host address: " + m_config.vlrAddr + GetWinsockError();
 		return false;
 	}
     addr.sin_port = htons(m_config.vlrPort);
-	if(connect(m_sockets[index], (SOCKADDR*) &addr, sizeof(addr))==SOCKET_ERROR) {
+    if(connect(m_sockets[index], reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == SOCKET_ERROR) {
 		errDescription = "Unable to connect to host " + m_config.vlrAddr + GetWinsockError();
 		return false;
     }
 	u_long iMode=1;
-	if(ioctlsocket(m_sockets[index], FIONBIO, &iMode) != 0) {
-		// Catch error
+    if(ioctlsocket(m_sockets[index], FIONBIO, &iMode) != 0) {
 		errDescription = "Error setting socket in non-blocking mode. " + GetWinsockError();
 		return false;
 	}
@@ -137,7 +162,7 @@ bool ConnectionPool::LoginToHLR(unsigned int index, std::string& errDescription)
 						if (bytesRecv>0) {
 							recvbuf[bytesRecv] = STR_TERMINATOR;
 							logWriter.Write("LoginToHLR: HLR response: " + std::string(recvbuf), index+1, debug);
-							_strupr_s(recvbuf, receiveBufferSize);
+                            _strupr_s(recvbuf, receiveBufferSize);
 							if(strstr(recvbuf, "LOGIN:")) {
 								// server asks for login
 								logWriter.Write("Sending username: " + m_config.username, debug);
@@ -393,7 +418,7 @@ int ConnectionPool::ProcessDeviceResponse(unsigned int index, RequestedDevice re
 						recvBuf[bytesRecv] = STR_TERMINATOR;
 						logWriter.Write(std::string("HLR response: ") + recvBuf, index, debug);
 						_strupr_s(recvBuf, receiveBufferSize);
-						strncat_s(hlrResponse, receiveBufferSize, recvBuf, bytesRecv + 1);
+                        strncat(hlrResponse, recvBuf, bytesRecv + 1);
 						if (requestType == stateQuery && strstr(hlrResponse, "END")) {							
 							ParseRes res = ResponseParser::Parse(requestedDevice, hlrResponse, *m_requests[index]);
 							if (res == success) {

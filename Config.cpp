@@ -1,7 +1,5 @@
-//#include <boost/filesystem.hpp>
 #include "Config.h"
 
-using namespace boost;
 
 Config::Config() :
 	vlrPort(5000),

@@ -2,8 +2,8 @@
 #include <stdint.h>
 #include <string>
 #include <map>
-#include "PS_Common.h"
-#include "PSPacket.h"
+#include "ps_common.h"
+#include "pspacket.h"
 
 enum RequestType {
 	stateQuery = 0,
