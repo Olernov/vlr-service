@@ -113,8 +113,7 @@ ParseRes ResponseParser::ParseHLRResponse(const char* response, ClientRequest& c
 
 	// One of states: CONNECTED or NOT CONNECTED should be in response.
 	// Otherwise return failure.
-	//std::string result;
-	if (strstr(response, "NOT CONNECTED")) {
+    if (strstr(response, "NOT CONNECTED")) {
 		clientRequest.subscriberState = notConnected;
 		return success;
 	}
@@ -134,6 +133,10 @@ ParseRes ResponseParser::ParseHLRResponse(const char* response, ClientRequest& c
 		clientRequest.resultDescr = "Unknown format of HLR response";
 		return failure;
 	}
+    if (strstr(response, "MS PURGED IN VLR")) {
+        clientRequest.subscriberState = notConnected;
+        return success;
+    }
 	return ParseVlrAddr(response, clientRequest);
 }
 

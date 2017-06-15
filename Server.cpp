@@ -1,4 +1,5 @@
 #include <sstream>
+#include <signal.h>
 #include "Server.h"
 #include "LogWriter.h"
 
@@ -7,26 +8,36 @@ extern LogWriter logWriter;
 extern void CloseSocket(int socket);
 
 
-Server::Server(unsigned int port, ConnectionPool& cp) :
-	connectionPool(cp),
-	shutdownInProgress(false)
+Server::Server() :
+    connectionPool(nullptr),
+    shutdownInProgress(false)
+{}
+
+
+bool Server::Initialize(unsigned int port, ConnectionPool *cp, std::string& errDescription)
 {
-	listenSocket = socket(AF_INET, SOCK_STREAM, 0);
+    connectionPool = cp;
+    listenSocket = socket(AF_INET, SOCK_STREAM, 0);
 	if (listenSocket < 0) {
-		throw std::runtime_error("Unable to create server socket AF_INET, SOCK_STREAM.");
+        errDescription = "Unable to create server socket AF_INET, SOCK_STREAM.";
+        return false;
 	}
+    int optval = 1;
+    setsockopt(listenSocket, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
 	struct sockaddr_in serverAddr;
 	memset((char *) &serverAddr, 0, sizeof(serverAddr));
 	serverAddr.sin_family = AF_INET;
 	serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
 	serverAddr.sin_port = htons(port);
 	if (bind(listenSocket, (struct sockaddr *) &serverAddr, sizeof(serverAddr)) != 0) {
-		throw std::runtime_error("Failed to call bind on server socket. Error " + std::to_string(WSAGetLastError()));
+        errDescription = "Failed to call bind on server socket. Error " + std::to_string(WSAGetLastError());
+        return false;
 	}
 	if (listen(listenSocket, MAX_CLIENT_CONNECTIONS) != 0) {
-		throw std::runtime_error("Failed to call bind on server socket. Error " + std::to_string(WSAGetLastError()));
+        errDescription = "Failed to call bind on server socket. Error " + std::to_string(WSAGetLastError());
+        return false;
 	}
-			
+    return true;
 }
 
 
@@ -39,6 +50,7 @@ Server::~Server()
 		}
 	}
 }
+
 
 void Server::Run()
 {
@@ -61,15 +73,24 @@ void Server::Run()
 		if ((socketCount = select(maxSocket + 1, &readSet, NULL, NULL, &tv)) != SELECT_TIMEOUT) {
 			if (socketCount == SOCKET_ERROR) {
 				logWriter << "socket select function returned error: " + std::to_string(WSAGetLastError());
+                continue;
 			}
 			if (FD_ISSET(listenSocket, &readSet)) {
 				ProcessIncomingConnection();
 			}
-			for (auto it = clientSockets.begin(); it != clientSockets.end(); it++) {
-				if (FD_ISSET(*it, &readSet)) {
+            auto it = clientSockets.begin();
+            while (it != clientSockets.end()) {
+                if (FD_ISSET(*it, &readSet)) {
 					char receiveBuffer[65000];
 					int recvBytes = recv(*it, receiveBuffer, sizeof(receiveBuffer), 0);
-					if (recvBytes <= 0) {
+                    if (recvBytes > 0) {
+                        if (!ProcessIncomingData(*it, receiveBuffer, recvBytes)) {
+                            logWriter << "Error receiving data on connection #" + std::to_string(*it) + " (error code "
+                                + std::to_string(WSAGetLastError()) + "). Closing connection...";
+                        }
+                        it++;
+                    }
+                    else {
 						if (recvBytes == 0) {
 							logWriter << "Client " + GetClientIPAddr(*it) + " disconnected.";
 						}
@@ -78,17 +99,13 @@ void Server::Run()
 								+ std::to_string(WSAGetLastError()) + "). Closing connection...";
 						}
 						CloseSocket(*it);
-						clientSockets.erase(it);
-						clientAddrs.erase(*it);
-						continue;
-					}
-					if (!ProcessIncomingData(*it, receiveBuffer, recvBytes)) {
-						logWriter << "Error receiving data on connection #" + std::to_string(*it) + " (error code "
-							+ std::to_string(WSAGetLastError()) + "). Closing connection...";
-						
-						continue;
+                        clientAddrs.erase(*it);
+                        clientSockets.erase(it++);
 					}
 				}
+                else {
+                    it++;
+                }
 			}
 		}
 	}
@@ -164,23 +181,26 @@ int Server::ProcessNextRequestFromBuffer(int socket, const char* buffer, int max
 		SendNotAcceptedResponse(socket, requestNum, errorDescr);
         return packetLen;
     }
-	logWriter.Write("Request number " + std::to_string(requestNum) + " received.", mainThreadIndex, debug);
+    logWriter.Write("Request #" + std::to_string(requestNum) + " received from " + GetClientIPAddr(socket),
+                        mainThreadIndex, notice);
 	ClientRequest clientRequest(socket);
 	if (!clientRequest.ValidateAndSetRequestParams(requestNum, requestAttrs, clientRequest, errorDescr)) {
-		logWriter.Write(errorDescr, mainThreadIndex, error);
+        logWriter.Write("Request #" + std::to_string(requestNum) + " rejected due to: " + errorDescr,
+                        mainThreadIndex, error);
 		SendNotAcceptedResponse(socket, requestNum, errorDescr);
 		return packetLen;
 	}
 	
 	unsigned int connIndex;
-	if (!connectionPool.TryAcquire(connIndex)) {
+    if (!connectionPool->TryAcquire(connIndex)) {
 		errorDescr = "Unable to acqure connection to HLR for request execution.";
-		logWriter.Write(errorDescr, mainThreadIndex, error);
+        logWriter.Write("Request #" + std::to_string(requestNum) + " rejected due to: " + errorDescr,
+                        mainThreadIndex, error);
 		SendNotAcceptedResponse(socket, requestNum, errorDescr);
 		return packetLen;
 	}
 	logWriter.Write("Acquired connection #" + std::to_string(connIndex), mainThreadIndex, debug);
-	clientRequest.resultCode = connectionPool.ExecRequest(connIndex, clientRequest);
+    clientRequest.resultCode = connectionPool->ExecRequest(connIndex, clientRequest);
 	logWriter << clientRequest.DumpResults();
 	if (!clientRequest.SendRequestResultToClient(errorDescr)) {
 		logWriter.Write("SendRequestResultToClient error: " + errorDescr, mainThreadIndex, error);
@@ -234,4 +254,11 @@ std::string Server::IPAddr2Text(const in_addr& inAddr)
 #endif
 	return std::string(buffer);
 }
+
+void Server::Stop()
+{
+    shutdownInProgress = true;
+}
+
+
 

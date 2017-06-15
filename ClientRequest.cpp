@@ -8,6 +8,8 @@
 
 ClientRequest::ClientRequest(int socket) : 
 	socket(socket), 
+    subscriberState(notConnected),
+    subscriberOnline(offline),
 	vlrAddress(0) 
 {}
 
@@ -91,7 +93,7 @@ bool ClientRequest::SendRequestResultToClient(std::string& errorDescr)
 std::string ClientRequest::DumpResults()
 {
 	std::stringstream ss;
-	ss << "Result code: " << std::to_string(resultCode);
+    ss << "Request #" + std::to_string(requestNum) + " result code: " << std::to_string(resultCode);
 	if (resultCode == OPERATION_SUCCESS) {
 		if (requestType == stateQuery) {
 			ss << std::endl << "SubscriberState: " << subscriberState;

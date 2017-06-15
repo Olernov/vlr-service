@@ -11,9 +11,12 @@
 class Server
 {
 public:
-	Server(unsigned int port, ConnectionPool& cp);
+    Server();
+    bool Initialize(unsigned int port, ConnectionPool* cp, std::string &errDescription);
 	~Server();
 	void Run();
+    void Stop();
+
 private:
 	static const int MAX_CLIENT_CONNECTIONS = 10;
 	static const int PARSE_ERROR = -1;
@@ -22,7 +25,7 @@ private:
 	//std::list<ClientConnectionPtr> clientConnections;
 	std::list<int> clientSockets;
 	std::map<int, in_addr> clientAddrs;
-	ConnectionPool& connectionPool;
+    ConnectionPool* connectionPool;
 	bool shutdownInProgress;
 
 	bool ProcessIncomingConnection();
@@ -31,5 +34,6 @@ private:
 	bool SendNotAcceptedResponse(int socket, uint32_t requestNum, std::string errDescr);
 	std::string GetClientIPAddr(int socket);
 	std::string IPAddr2Text(const in_addr& pinAddr);
+
 };
 

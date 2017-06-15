@@ -136,13 +136,10 @@ bool ConnectionPool::LoginToHLR(unsigned int index, std::string& errDescription)
 	int bytesRecv = 0;
 	char recvbuf[receiveBufferSize];
 	char sendbuf[sendBufferSize]; 
-	char response[receiveBufferSize];
 	int nAttemptCounter = 0;
 
 	while(nAttemptCounter < 10) {
 		logWriter.Write("Login attempt " + std::to_string(nAttemptCounter+1), index+1, debug);
-		
-		response[0] = STR_TERMINATOR;
 		while(true) {
 			tv.tv_sec = 1;
 			tv.tv_usec = 0;
@@ -381,7 +378,7 @@ int ConnectionPool::SendCommandToDevice(unsigned int index, std::string deviceCo
 		return restoreRes;
 	}
 	char sendBuf[sendBufferSize];
-	sprintf_s(sendBuf, sendBufferSize, "%s\r\n", deviceCommand);
+    sprintf_s(sendBuf, sendBufferSize, "%s\r\n", deviceCommand.c_str());
 	if (send(m_sockets[index], (char*)sendBuf, strlen(sendBuf), 0) == SOCKET_ERROR) {
 		errDescription = "Socket error when sending command" + GetWinsockError();
 		return NETWORK_ERROR;
