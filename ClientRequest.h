@@ -29,15 +29,15 @@ class ClientRequest
 public:
 	ClientRequest(int socket);
 	bool ValidateAndSetRequestParams(uint32_t reqNum, const std::multimap<__uint16_t, SPSReqAttrParsed>& requestAttrs,
-			ClientRequest& clientRequest, std::string& errorDescr);
+            std::string& errorDescr);
 	bool SendRequestResultToClient(std::string& errorDescr);
 	std::string DumpResults();
-//private:
-	RequestType requestType;
+
+    RequestType requestType;
 	uint32_t requestNum;
 	uint64_t imsi;
 	int socket;
-	int8_t resultCode;
+    int8_t resultCode;
 	SubscriberState subscriberState;
 	SubscriberOnline subscriberOnline; 
 	uint64_t vlrAddress; 

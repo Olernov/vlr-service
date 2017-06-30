@@ -1,8 +1,3 @@
-// EricssonHLR.cpp : Defines the entry point for the console application.
-//
-
- //#define _CRT_SECURE_NO_WARNINGS
-
 #include <time.h>
 #include <stdarg.h>
 #ifdef _WIN32
@@ -36,7 +31,7 @@ void CloseSocket(int socket)
 #ifndef _WIN32
 void SignalHandler(int signum, siginfo_t *info, void *ptr)
 {
-    std::cout << "Received signal #" <<signum << " from process #" << info->si_pid << std::endl;
+    std::cout << "Received signal #" <<signum << " from process #" << info->si_pid << ". Stopping ..." << std::endl;
     server.Stop();
 }
 #endif

@@ -57,7 +57,7 @@ void Server::Run()
 	while (!shutdownInProgress) {
 		struct timeval tv;
 		tv.tv_sec = 0;
-		tv.tv_usec = 100; //time-out = 100 ms
+        tv.tv_usec = 100000; //time-out = 100 ms
 		fd_set readSet;
 		FD_ZERO(&readSet);
 		FD_SET(listenSocket, &readSet);
@@ -84,10 +84,7 @@ void Server::Run()
 					char receiveBuffer[65000];
 					int recvBytes = recv(*it, receiveBuffer, sizeof(receiveBuffer), 0);
                     if (recvBytes > 0) {
-                        if (!ProcessIncomingData(*it, receiveBuffer, recvBytes)) {
-                            logWriter << "Error receiving data on connection #" + std::to_string(*it) + " (error code "
-                                + std::to_string(WSAGetLastError()) + "). Closing connection...";
-                        }
+                        ProcessIncomingData(*it, receiveBuffer, recvBytes);
                         it++;
                     }
                     else {
@@ -140,7 +137,7 @@ bool Server::ProcessIncomingConnection()
 }
 
 
-bool Server::ProcessIncomingData(int socket, const char* buffer, int bufferSize)
+void Server::ProcessIncomingData(int socket, const char* buffer, int bufferSize)
 {
 	int bytesProcessed = 0;
     while(bytesProcessed < bufferSize) {
@@ -152,7 +149,6 @@ bool Server::ProcessIncomingData(int socket, const char* buffer, int bufferSize)
 		  break;
 	  }
     }
-    return true;
 }
 
 /* Function returns length of next successfully processed request from buffer 
@@ -184,7 +180,7 @@ int Server::ProcessNextRequestFromBuffer(int socket, const char* buffer, int max
     logWriter.Write("Request #" + std::to_string(requestNum) + " received from " + GetClientIPAddr(socket),
                         mainThreadIndex, notice);
 	ClientRequest clientRequest(socket);
-	if (!clientRequest.ValidateAndSetRequestParams(requestNum, requestAttrs, clientRequest, errorDescr)) {
+    if (!clientRequest.ValidateAndSetRequestParams(requestNum, requestAttrs, errorDescr)) {
         logWriter.Write("Request #" + std::to_string(requestNum) + " rejected due to: " + errorDescr,
                         mainThreadIndex, error);
 		SendNotAcceptedResponse(socket, requestNum, errorDescr);

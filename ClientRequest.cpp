@@ -15,7 +15,7 @@ ClientRequest::ClientRequest(int socket) :
 
 
 bool ClientRequest::ValidateAndSetRequestParams(uint32_t reqNum, const std::multimap<__uint16_t, SPSReqAttrParsed>& requestAttrs, 
-	ClientRequest& clientRequest, std::string& errorDescr)
+    std::string& errorDescr)
 {
 	requestNum = reqNum;
 	auto iter = requestAttrs.find(VLR_GATEWAY_COMMAND);
@@ -45,7 +45,7 @@ bool ClientRequest::ValidateAndSetRequestParams(uint32_t reqNum, const std::mult
 			". Its size must be 8 bytes.";
 		return false;
 	}
-	clientRequest.imsi = ntohll(*static_cast<uint64_t*>(iter->second.m_pvData));
+    imsi = ntohll(*static_cast<uint64_t*>(iter->second.m_pvData));
 	return true;
 }
 
