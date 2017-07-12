@@ -16,7 +16,8 @@ public:
 	bool Initialize(const Config& config, std::string& errDescription);
 	bool TryAcquire(unsigned int& index);
 	int8_t ExecRequest(unsigned int index, ClientRequest& clientRequest);
-	
+    void ProcessDeviceCommand(unsigned int index, RequestedDevice targetDevice, const std::string& deviceCommand);
+
 private:
 	static const int receiveBufferSize = 65000;
 	static const int sendBufferSize = 1024;

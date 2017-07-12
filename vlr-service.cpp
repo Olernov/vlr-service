@@ -82,23 +82,23 @@ void RunKeyboardTests(ConnectionPool& connectionPool)
 		switch (c) {
 		case '1':
 			clientRequest.requestType = stateQuery;
-			clientRequest.imsi = 250270100520482;
+			clientRequest.subscriberID = 250270100520482;
 			break;
 		case '2':
 			clientRequest.requestType = stateQuery;
-			clientRequest.imsi = 250270100307757;
+			clientRequest.subscriberID = 250270100307757;
 			break;
 		case '3':
 			clientRequest.requestType = stateQuery;
-			clientRequest.imsi = 250270100273000;
+			clientRequest.subscriberID = 250270100273000;
 			break;
 		case '4':
 			clientRequest.requestType = stateQuery;
-			clientRequest.imsi = 250270100604804;
+			clientRequest.subscriberID = 250270100604804;
 			break;
 		case '9':
 			clientRequest.requestType = stateQuery;
-			clientRequest.imsi = 25027010052048200;
+			clientRequest.subscriberID = 25027010052048200;
 			break;
 		default:
 			std::cout << "Wrong option entered, try again" << std::endl;

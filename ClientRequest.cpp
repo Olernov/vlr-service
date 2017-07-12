@@ -30,7 +30,8 @@ bool ClientRequest::ValidateAndSetRequestParams(uint32_t reqNum, const std::mult
 	}
 	uint8_t rt = *static_cast<uint8_t*>(iter->second.m_pvData);
 	requestType = static_cast<RequestType>(rt);
-	if (requestType != stateQuery && requestType != resetRequest) {
+    if (requestType != stateQuery && requestType != resetRequest && requestType != activateRequest
+            && requestType != deactivateRequest) {
 		errorDescr = "Request type " + std::to_string(requestType) + " is not implemented";
 		return false;
 	}
@@ -45,7 +46,7 @@ bool ClientRequest::ValidateAndSetRequestParams(uint32_t reqNum, const std::mult
 			". Its size must be 8 bytes.";
 		return false;
 	}
-    imsi = ntohll(*static_cast<uint64_t*>(iter->second.m_pvData));
+    subscriberID = ntohll(*static_cast<uint64_t*>(iter->second.m_pvData));
 	return true;
 }
 

@@ -21,20 +21,6 @@
       }
       return s;
     }
-
-//    int strncat_s(char *dest, size_t destsz, const char *src, size_t count)
-//    {
-//        strncat(dest, src, count);
-//        return 0;
-//    }
-
-//    int strncpy_s(char* dest, size_t destsz,
-//                      const char* src, size_t count)
-//    {
-//        strncpy(dest, src,count);
-//        return 0;
-//    }
-
 #endif
 
 
@@ -263,7 +249,7 @@ void ConnectionPool::TelnetParse(unsigned char* recvbuf,int* bytesRecv,int socke
 	for(int i=0; i<*bytesRecv; i++)
 	{
 		 if (recvbuf[i]==0) {
-			// иногда в ответах HLR проскакивают нули, которые воспринимаются как концы строк. Заменим их на пробел
+            // sometimes there are 0 chars in HLR responses. Replace them with space
 			recvbuf[i]=' ';
 			continue;
 		}
@@ -429,7 +415,9 @@ int ConnectionPool::ProcessDeviceResponse(unsigned int index, RequestedDevice re
 								return BAD_DEVICE_RESPONSE;
 							}
 						}
-						else if (requestType == resetRequest && strstr(hlrResponse, "EXECUTED"))  {
+                        else if ((requestType == resetRequest || requestType == activateRequest
+                                  || requestType == deactivateRequest)
+                                 && strstr(hlrResponse, "EXECUTED"))  {
 							return OPERATION_SUCCESS;
 						}
 						if (char* p = strstr(hlrResponse, "NOT ACCEPTED")) {
@@ -523,51 +511,68 @@ void ConnectionPool::WorkerThread(unsigned int index)
 {
 	while (!m_stopFlag) {
 		std::unique_lock<std::mutex> locker(m_mutexes[index]);
-		while(!m_stopFlag && !m_busy[index]) 
+        while(!m_stopFlag && !m_busy[index]) {
 			m_condVars[index].wait(locker);
+        }
 		if (!m_stopFlag && m_busy[index] && !m_finished[index]) {
-			std::string errDescription;
+
 			try {
+                RequestedDevice targetDevice;
 				std::string deviceCommand;
-				if (m_requests[index]->requestType == stateQuery) {
-					deviceCommand = "MGSSP: IMSI=" + std::to_string(m_requests[index]->imsi) + ";";
+                switch(m_requests[index]->requestType) {
+                case stateQuery:
+                    targetDevice = VLR;
+                    deviceCommand = "MGSSP: IMSI=" + std::to_string(m_requests[index]->subscriberID) + ";";
+                    break;
+                case resetRequest:
+                    targetDevice = HLR;
+                    deviceCommand = "HGSLR: IMSI=" + std::to_string(m_requests[index]->subscriberID) + ";";
+                    break;
+                case activateRequest:
+                    targetDevice = HLR;
+                    deviceCommand = "HGSDC: MSISDN=" + std::to_string(m_requests[index]->subscriberID) + ",SUD=TS11-1;";
+                    break;
+                case deactivateRequest:
+                    targetDevice = HLR;
+                    deviceCommand = "HGSDC: MSISDN=" + std::to_string(m_requests[index]->subscriberID) + ",SUD=TS11-0;";
+                    break;
+                default:
+                    m_resultCodes[index] = CMD_UNKNOWN;
+                    m_results[index] = "ConnectionPool: unknown request "
+                            + std::to_string(m_requests[index]->requestType);
 				}
-				else if (m_requests[index]->requestType == resetRequest) {
-					deviceCommand = "HGSLR: IMSI=" + std::to_string(m_requests[index]->imsi) + ";";
-				}
-				else {
-					// TODO: 
-				}
-				logWriter.Write("Sending request: " + deviceCommand, index);
-				int res = SendCommandToDevice(index, deviceCommand, errDescription);
-				if (res == OPERATION_SUCCESS) {
-					res = ProcessDeviceResponse(index, VLR, m_requests[index]->requestType, deviceCommand, errDescription);
-					if (m_requests[index]->requestType == stateQuery && res == INFO_NOT_COMPLETE) {
-						logWriter.Write("VLR returned not complete information, sending request to HLR ...", index);
-						// We have to check if subscriber is roaming. For that we will ask HLR for current VLR address
-						deviceCommand = "HGSDP: IMSI=" + std::to_string(m_requests[index]->imsi) + ", LOC;";
-						logWriter.Write("Sending request: " + deviceCommand, index);
-						res = SendCommandToDevice(index, deviceCommand, errDescription);
-						if (res == OPERATION_SUCCESS) {
-							res = ProcessDeviceResponse(index, HLR, m_requests[index]->requestType, deviceCommand, errDescription);
-						}
-					}
-				}
-				logWriter.Write("Request processing finished.", index);
-				m_resultCodes[index] = res;
-				m_results[index] = errDescription;
+                if (!deviceCommand.empty()) {
+                    std::string errDescription;
+                    logWriter.Write("Sending request: " + deviceCommand, index);
+                    int res = SendCommandToDevice(index, deviceCommand, errDescription);
+                    if (res == OPERATION_SUCCESS) {
+                        res = ProcessDeviceResponse(index, targetDevice, m_requests[index]->requestType, deviceCommand,
+                                                    errDescription);
+                        if (m_requests[index]->requestType == stateQuery && res == INFO_NOT_COMPLETE) {
+                            logWriter.Write("VLR returned not complete information, sending request to HLR ...", index);
+                            // We have to check if subscriber is roaming. For that we will ask HLR for current VLR address
+                            targetDevice = HLR;
+                            deviceCommand = "HGSDP: IMSI=" + std::to_string(m_requests[index]->subscriberID) + ", LOC;";
+                            logWriter.Write("Sending request: " + deviceCommand, index);
+                            res = SendCommandToDevice(index, deviceCommand, errDescription);
+                            if (res == OPERATION_SUCCESS) {
+                                res = ProcessDeviceResponse(index, targetDevice, m_requests[index]->requestType,
+                                                            deviceCommand, errDescription);
+                            }
+                        }
+                    }
+                    logWriter.Write("Request processing finished.", index);
+                    m_resultCodes[index] = res;
+                    m_results[index] = errDescription;
+                    //ProcessDeviceCommand(index, targetDevice, deviceCommand);
+                }
 			}
 			catch(const std::exception& ex) {
 				logWriter.Write(std::string("Exception caught: ") + ex.what(), index);
 				m_resultCodes[index] = EXCEPTION_CAUGHT;
 				m_results[index] = ex.what();
 			}
-			catch(...) {
-				logWriter.Write("Unknown exception caught", index);
-				m_resultCodes[index] = EXCEPTION_CAUGHT;
-				m_results[index] = "Unknown exception";
-			}
-			m_finished[index] = true;
+            m_finished[index] = true;
 			m_condVars[index].notify_one();
 		}
 	}

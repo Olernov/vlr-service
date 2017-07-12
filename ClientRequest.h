@@ -7,7 +7,9 @@
 
 enum RequestType {
 	stateQuery = 0,
-	resetRequest = 1
+    resetRequest = 1,
+    activateRequest = 2,
+    deactivateRequest = 3
 };
 
 enum SubscriberState
@@ -35,7 +37,7 @@ public:
 
     RequestType requestType;
 	uint32_t requestNum;
-	uint64_t imsi;
+    uint64_t subscriberID;
 	int socket;
     int8_t resultCode;
 	SubscriberState subscriberState;

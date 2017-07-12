@@ -105,7 +105,7 @@ ParseRes ResponseParser::ParseHLRResponse(const char* response, ClientRequest& c
 	// try to find IMSI in next line of response and skip it. 
 	// Next field after IMSI should be STATE
 	char imsiStr[20];
-	snprintf(imsiStr, sizeof(imsiStr), "%llu", clientRequest.imsi);
+	snprintf(imsiStr, sizeof(imsiStr), "%llu", clientRequest.subscriberID);
 	if (!TryToSkipSubstring(imsiStr, response)) {
 		clientRequest.resultDescr = "Unknown format of HLR response";
 		return failure;
