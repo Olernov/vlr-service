@@ -32,7 +32,9 @@ void CloseSocket(int socket)
 void SignalHandler(int signum, siginfo_t *info, void *ptr)
 {
     std::cout << "Received signal #" <<signum << " from process #" << info->si_pid << ". Stopping ..." << std::endl;
-    server.Stop();
+    if (signum != SIGPIPE) {
+        server.Stop();
+    }
 }
 #endif
 
@@ -62,59 +64,10 @@ void TestCommandSender(int index, int commandsNum, int minSleepTime)
 	}
 }
 
+
 void printUsage(char* programName)
 {
     std::cerr << "Usage: " << std::endl << programName << " <config-file> [-test]" << std::endl;
-}
-
-void RunKeyboardTests(ConnectionPool& connectionPool)
-{
-	char c;
-	while (true) {
-		std::cout << "Choose IMSI: 1-2 - correct, 3 - unregistered, 4 - roaming, 9 - wrong (too long), q - quit: ";
-		std::cin >> c;
-		if (c == 'q' || c == 'Q') {
-			break;
-		}
-		
-		ClientRequest clientRequest(0);
-		clientRequest.requestNum = 1;
-		switch (c) {
-		case '1':
-			clientRequest.requestType = stateQuery;
-			clientRequest.subscriberID = 250270100520482;
-			break;
-		case '2':
-			clientRequest.requestType = stateQuery;
-			clientRequest.subscriberID = 250270100307757;
-			break;
-		case '3':
-			clientRequest.requestType = stateQuery;
-			clientRequest.subscriberID = 250270100273000;
-			break;
-		case '4':
-			clientRequest.requestType = stateQuery;
-			clientRequest.subscriberID = 250270100604804;
-			break;
-		case '9':
-			clientRequest.requestType = stateQuery;
-			clientRequest.subscriberID = 25027010052048200;
-			break;
-		default:
-			std::cout << "Wrong option entered, try again" << std::endl;
-			continue;
-		}
-		unsigned int connIndex;
-		if (!connectionPool.TryAcquire(connIndex)) {
-			std::cout << "Unable to acqure connection for request execution." << std::endl;
-			continue;
-		}
-		std::cout << "Acquired connection #" + std::to_string(connIndex) << std::endl;
-		std::string resultDescr;
-		
-		int requestRes = connectionPool.ExecRequest(connIndex, clientRequest);
-		std::cout << "Result: " << requestRes << " (" << resultDescr << ")" << std::endl;
-	}
 }
 
 
@@ -158,7 +111,7 @@ int main(int argc, char* argv[])
 		logWriter << "VLR service start. Configuration settings:";
 		logWriter << config.DumpAllSettings();
 
-		ConnectionPool connectionPool(config);
+        ConnectionPool connectionPool;
 		std::string errDescription;
 		if (!connectionPool.Initialize(config, errDescription)) {
 			std::cerr << "Unable to initialize connection pool: " << errDescription << ". Exiting." << std::endl;
@@ -178,13 +131,7 @@ int main(int argc, char* argv[])
         sigaction(SIGTERM, &act, NULL);
 #endif
 		std::cout << "VLR service started. See log files at LOG_DIR for further details" << std::endl;
-		if (runTests) {
-			RunKeyboardTests(connectionPool);
-		}
-		else {
-			server.Run();
-		}
-		
+        server.Run();
 	}
 	catch (const std::exception& ex) {
 		std::cerr << ex.what() <<  ". Exiting." <<std::endl;

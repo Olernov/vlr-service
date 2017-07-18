@@ -10,7 +10,8 @@ ClientRequest::ClientRequest(int socket) :
 	socket(socket), 
     subscriberState(notConnected),
     subscriberOnline(offline),
-	vlrAddress(0) 
+    vlrAddress(0),
+    accepted(steady_clock::now())
 {}
 
 

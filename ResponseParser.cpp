@@ -232,3 +232,4 @@ void ResponseParser::StripHLRResponse(char* start, std::string& result)
 	}
 	result = start;
 }
+

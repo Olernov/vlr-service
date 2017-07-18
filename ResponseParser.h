@@ -64,7 +64,6 @@ class ResponseParser
 public:
 	ResponseParser();
 	~ResponseParser();
-
     static ParseRes Parse(RequestedDevice requestedDevice, const char* response, ClientRequest& clientRequest);
     static void StripHLRResponse(char* start, std::string& result);
 private:
@@ -74,6 +73,7 @@ private:
 	static bool TryToSkipSubstring(const char* substr, const char*& str);
 	static bool TryToSkipDelimiters(const char*& str, const char* end);
 	static ParseRes ParseVlrAddr(const char* response, ClientRequest& clientRequest);
+
 };
 
 

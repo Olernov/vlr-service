@@ -179,28 +179,16 @@ int Server::ProcessNextRequestFromBuffer(int socket, const char* buffer, int max
     }
     logWriter.Write("Request #" + std::to_string(requestNum) + " received from " + GetClientIPAddr(socket),
                         mainThreadIndex, notice);
-	ClientRequest clientRequest(socket);
-    if (!clientRequest.ValidateAndSetRequestParams(requestNum, requestAttrs, errorDescr)) {
+    ClientRequest* clientRequest = new ClientRequest(socket);
+    if (!clientRequest->ValidateAndSetRequestParams(requestNum, requestAttrs, errorDescr)) {
         logWriter.Write("Request #" + std::to_string(requestNum) + " rejected due to: " + errorDescr,
                         mainThreadIndex, error);
 		SendNotAcceptedResponse(socket, requestNum, errorDescr);
+        delete clientRequest;
 		return packetLen;
 	}
 	
-	unsigned int connIndex;
-    if (!connectionPool->TryAcquire(connIndex)) {
-		errorDescr = "Unable to acqure connection to HLR for request execution.";
-        logWriter.Write("Request #" + std::to_string(requestNum) + " rejected due to: " + errorDescr,
-                        mainThreadIndex, error);
-		SendNotAcceptedResponse(socket, requestNum, errorDescr);
-		return packetLen;
-	}
-	logWriter.Write("Acquired connection #" + std::to_string(connIndex), mainThreadIndex, debug);
-    clientRequest.resultCode = connectionPool->ExecRequest(connIndex, clientRequest);
-	logWriter << clientRequest.DumpResults();
-	if (!clientRequest.SendRequestResultToClient(errorDescr)) {
-		logWriter.Write("SendRequestResultToClient error: " + errorDescr, mainThreadIndex, error);
-	}
+    connectionPool->PushRequest(clientRequest);
 	return packetLen;
 }
 

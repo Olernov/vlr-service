@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <string>
 #include <map>
+#include <chrono>
 #include "ps_common.h"
 #include "pspacket.h"
 
@@ -25,6 +26,7 @@ enum SubscriberOnline
 	online = 1	
 };
 
+using namespace std::chrono;
 
 class ClientRequest
 {
@@ -39,9 +41,10 @@ public:
 	uint32_t requestNum;
     uint64_t subscriberID;
 	int socket;
-    int8_t resultCode;
-	SubscriberState subscriberState;
+    SubscriberState subscriberState;
 	SubscriberOnline subscriberOnline; 
 	uint64_t vlrAddress; 
+    steady_clock::time_point accepted;
+    int8_t resultCode;
 	std::string resultDescr;
 };

@@ -55,7 +55,7 @@
 #define INFO_NOT_COMPLETE					1
 #define ALL_CONNECTIONS_BUSY				-33333
 
-#define SOCKET_TIMEOUT_SEC					10
+#define SOCKET_TIMEOUT_SEC					5
 
 
 
