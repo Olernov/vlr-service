@@ -29,9 +29,9 @@ extern void CloseSocket(int socket);
 
 HLRConnector::HLRConnector(unsigned int index, const Config& config) :
     thisIndex(index),
-    config(config),
     socketConnected(false),
     loggedInToHLR(false),
+    config(config),
     stopFlag(false)
 {
 }
@@ -154,7 +154,7 @@ bool HLRConnector::MakeAttemptToLogin()
                         continue;
                     }
                     if(strstr(recvbuf,"TERMINAL TYPE?")) {
-                        if (!SendLoginAttribute("terminal type", TERMINAL_TYPE)) {
+                        if (!SendLoginAttribute("terminal type", terminalType)) {
                             return false;
                         }
                         continue;
@@ -252,7 +252,7 @@ bool HLRConnector::ProcessDeviceResponse(std::string& response)
 	fd_set read_set;
 	struct timeval tv;
     while (true) {
-		tv.tv_sec = SOCKET_TIMEOUT_SEC;
+        tv.tv_sec = socketTimeoutSec;
 		tv.tv_usec = 0;
 		FD_ZERO(&read_set);
         FD_SET(hlrSocket, &read_set);
@@ -336,7 +336,7 @@ void HLRConnector::RestoreConnectionIfNeeded()
 	if(bytesRecv > 0) {
         TelnetParse((unsigned char*) recvBuf, &bytesRecv);
         recvBuf[bytesRecv] = STR_TERMINATOR;
-        logWriter.Write(std::string("HLR initiated response: ") + recvBuf, thisIndex);
+        logWriter.Write(std::string("HLR initiated response: ") + recvBuf, thisIndex, debug);
 		_strupr_s(recvBuf, receiveBufferSize);
 		if (strstr(recvBuf, "LOGGED OFF")) {
             logWriter.Write("LOGGED OFF message received, reconnecting ...", thisIndex);

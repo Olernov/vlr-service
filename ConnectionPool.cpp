@@ -53,7 +53,6 @@ void ConnectionPool::PushRequest(ClientRequest *clientRequest)
 {
     incomingRequests.push(clientRequest);
     conditionVar.notify_one();
-
 }
 
 

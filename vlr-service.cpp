@@ -31,38 +31,14 @@ void CloseSocket(int socket)
 #ifndef _WIN32
 void SignalHandler(int signum, siginfo_t *info, void *ptr)
 {
-    std::cout << "Received signal #" <<signum << " from process #" << info->si_pid << ". Stopping ..." << std::endl;
+    std::cout << "Received signal #" <<signum << " from process #" << info->si_pid << std::endl;
     if (signum != SIGPIPE) {
+        std::cout << "Stopping ..." << std::endl;
         server.Stop();
     }
 }
 #endif
 
-
-void TestCommandSender(int index, int commandsNum, int minSleepTime)
-{
-	srand((unsigned int)time(NULL));
-	logWriter.Write(std::string("Started test command sender thread #") + std::to_string(index));
-	for (int i = 0; i < commandsNum; ++i) {
-		char* task = new char[50];
-		char* result = new char[MAX_DMS_RESPONSE_LEN];
-		switch (i % 3) {
-		case 0:
-			sprintf_s(task, 50, "HGSDC:MSISDN=79047186560,SUD=CLIP-%d;", rand() % 5);
-			break;
-		case 1:
-			sprintf_s(task, 50, "HGSDP:MSISDN=79047172074,LOC;");
-			break;
-		case 2:
-			sprintf_s(task, 50, "MGSSP:IMSI=250270100520482;");
-			break;
-		}
-		result[0] = '\0';
-		std::this_thread::sleep_for(std::chrono::seconds(minSleepTime + rand() % 3));
-		delete [] task;
-		delete [] result;
-	}
-}
 
 
 void printUsage(char* programName)
@@ -78,10 +54,6 @@ int main(int argc, char* argv[])
         exit(EXIT_FAILURE);
     }
     const char* confFilename = argv[1];
-    bool runTests = false;
-    if (argc > 2 && !strncasecmp(argv[2], "-test", 5)) {
-        runTests = true;
-    }
     std::ifstream confFile(confFilename, std::ifstream::in);
     if (!confFile.is_open()) {
         std::cerr << "Unable to open config file " << confFilename << std::endl;
@@ -98,7 +70,7 @@ int main(int argc, char* argv[])
 		exit(EXIT_FAILURE);
     }
 #ifndef _WIN32
-    const std::string pidFilename = "/var/run/vlr-service.pid";
+    const std::string pidFilename("/var/run/vlr-gateway.pid");
     std::ofstream pidFile(pidFilename, std::ofstream::out);
     if (pidFile.is_open()) {
         pidFile << getpid();
@@ -108,7 +80,7 @@ int main(int argc, char* argv[])
 	
 	try {
 		logWriter.Initialize(config.logDir, "vlr", config.logLevel);
-		logWriter << "VLR service start. Configuration settings:";
+        logWriter << "VLR/HLR gateway start. Configuration settings:";
 		logWriter << config.DumpAllSettings();
 
         ConnectionPool connectionPool;
@@ -130,7 +102,7 @@ int main(int argc, char* argv[])
         sigaction(SIGINT, &act, NULL);
         sigaction(SIGTERM, &act, NULL);
 #endif
-		std::cout << "VLR service started. See log files at LOG_DIR for further details" << std::endl;
+        std::cout << "VLR/HLR gateway started. See log files at LOG_DIR for further details" << std::endl;
         server.Run();
 	}
 	catch (const std::exception& ex) {

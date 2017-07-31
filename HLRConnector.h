@@ -20,6 +20,8 @@ private:
     static const int receiveBufferSize = 65000;
     static const int sendBufferSize = 1024;
     static const int maxLoginAttempts = 5;
+    static const int socketTimeoutSec = 5;
+    const char* terminalType = "vt100";
 
     unsigned int thisIndex;
     int hlrSocket;

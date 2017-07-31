@@ -39,12 +39,6 @@
 #endif
 
 
-
-#define MAX_THREADS							16
-#define MAX_DMS_RESPONSE_LEN				1000
-#define ERROR_INIT_PARAMS					-1
-#define INIT_FAIL							-2
-#define NETWORK_ERROR						-3
 #define BAD_DEVICE_RESPONSE					-4
 #define NO_CONNECTION_TO_VLR				-5
 #define BAD_CLIENT_REQUEST					-6
@@ -53,17 +47,9 @@
 #define EXCEPTION_CAUGHT					-999
 #define OPERATION_SUCCESS					0
 #define INFO_NOT_COMPLETE					1
-#define ALL_CONNECTIONS_BUSY				-33333
-
-#define SOCKET_TIMEOUT_SEC					5
-
-
 
 #define STR_TERMINATOR				'\0'
-#define CR_CHAR_CODE				'\r'
-#define LF_CHAR_CODE				'\n'
-#define HLR_PROMPT					"\x03<"
-#define TERMINAL_TYPE				"vt100"
+#define HLR_PROMPT                  "\x03<"
 
 const int mainThreadIndex = -1;
 const std::string crlf = "\n";

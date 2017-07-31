@@ -227,7 +227,7 @@ void ResponseParser::StripHLRResponse(char* start, std::string& result)
 			*p3 = ' ';
 		}
 	}
-	if (!strcmp(start + strlen(start) - 2, HLR_PROMPT)) {
+    if (!strcmp(start + strlen(start) - 2, HLR_PROMPT)) {
 		start[strlen(start) - 2] = STR_TERMINATOR;
 	}
 	result = start;
