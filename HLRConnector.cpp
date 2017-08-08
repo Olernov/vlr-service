@@ -221,19 +221,24 @@ bool HLRConnector::Reconnect()
 
 bool HLRConnector::ProcessCommand(const std::string& command, std::string& response)
 {
+    RestoreConnectionIfNeeded();
+    if (!loggedInToHLR) {
+        return false;
+    }
     if (!SendCommandToDevice(command)) {
         return false;
     }
-    return ProcessDeviceResponse(response);
+    bool processRes = ProcessDeviceResponse(response);
+    if (processRes) {
+        MaintainDialogIfNeeded(response);
+    }
+    return processRes;
 }
 
 
 bool HLRConnector::SendCommandToDevice(std::string command)
 {
-    RestoreConnectionIfNeeded();
-    if (!loggedInToHLR) {
-        return false;
-	}
+
 	char sendBuf[sendBufferSize];
     sprintf_s(sendBuf, sendBufferSize, "%s\r\n", command.c_str());
     if (send(hlrSocket, (char*)sendBuf, strlen(sendBuf), 0) == SOCKET_ERROR) {
@@ -283,6 +288,9 @@ bool HLRConnector::ProcessDeviceResponse(std::string& response)
                             ResponseParser::StripHLRResponse(p, response);
                             errDescription = response;
                             return false;
+                        }
+                        if (strstr(hlrResponse, "ORDERED") != nullptr) {
+                            SendEscapeSymbol();
                         }
                     }
                 }
@@ -347,14 +355,45 @@ void HLRConnector::RestoreConnectionIfNeeded()
 		else if (strstr(recvBuf, "TIME OUT") || strstr(recvBuf, "CONNECTION INTERRUPTED")) {
             logWriter.Write("TIME OUT or CONNECTION INTERRUPTED report from HLR, restoring connection ...",
                             thisIndex);
-			sprintf_s(sendBuf, sendBufferSize, "\r\n");
-            if(send(hlrSocket,(char*) sendBuf, strlen(sendBuf), 0) == SOCKET_ERROR) {
-				errDescription = "Socket error when sending restore connection message" + GetWinsockError();
-                return;
-			}
+            SendCRLF();
 		}
 	}
     return;
+}
+
+
+void HLRConnector::MaintainDialogIfNeeded(const std::string& response)
+{
+    if (!ResponseEndsWithPrompt(response)) {
+        SendCRLF();
+    }
+}
+
+
+bool HLRConnector::ResponseEndsWithPrompt(const std::string& response)
+{
+    return response.compare(response.length() - strlen(HLR_PROMPT), strlen(HLR_PROMPT),
+                            HLR_PROMPT) == 0;
+}
+
+
+void HLRConnector::SendCRLF()
+{
+    const char* sendBuf= "\r\n";
+    if(send(hlrSocket, sendBuf, strlen(sendBuf), 0) == SOCKET_ERROR) {
+        errDescription = "Socket error when sending CR/LF: " + GetWinsockError();
+        return;
+    }
+}
+
+
+void HLRConnector::SendEscapeSymbol()
+{
+    logWriter.Write("Sending escape symbol", thisIndex, debug);
+    char sendBuf = '\x04';
+    if(send(hlrSocket, &sendBuf, sizeof(sendBuf), 0) == SOCKET_ERROR) {
+        logWriter.Write("Socket error when sending escape signal", thisIndex);
+    }
 }
 
 

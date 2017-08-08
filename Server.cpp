@@ -68,7 +68,7 @@ void Server::Run()
 				maxSocket = s;
 			}
 		}
-		const int SELECT_TIMEOUT = 0;
+        const int SELECT_TIMEOUT = 0;
 		int socketCount;
 		if ((socketCount = select(maxSocket + 1, &readSet, NULL, NULL, &tv)) != SELECT_TIMEOUT) {
 			if (socketCount == SOCKET_ERROR) {

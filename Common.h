@@ -67,10 +67,17 @@ const std::string crlf = "\n";
 #endif
 
 
-
-
 static const uint16_t VLR_GATEWAY_COMMAND = 0x0500;
-static const uint16_t VLR_GATEWAY_IMSI = 0x0501;
+static const uint16_t VLR_GATEWAY_SUBSCR_ID = 0x0501;
 static const uint16_t VLR_GATEWAY_STATE = 0x0502;
 static const uint16_t VLR_GATEWAY_ONLINE_STATUS  = 0x0503;
 static const uint16_t VLR_GATEWAY_VLR_ADDRESS = 0x0504;
+static const uint16_t VLR_GATEWAY_IMSI = 0x0505;
+
+enum RequestType {
+    stateQuery = 0,
+    resetRequest = 1,
+    activateRequest = 2,
+    deactivateRequest = 3,
+    imsiQuery = 4
+};

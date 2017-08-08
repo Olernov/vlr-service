@@ -32,18 +32,18 @@ bool ClientRequest::ValidateAndSetRequestParams(uint32_t reqNum, const std::mult
 	uint8_t rt = *static_cast<uint8_t*>(iter->second.m_pvData);
 	requestType = static_cast<RequestType>(rt);
     if (requestType != stateQuery && requestType != resetRequest && requestType != activateRequest
-            && requestType != deactivateRequest) {
+            && requestType != deactivateRequest && requestType != imsiQuery) {
 		errorDescr = "Request type " + std::to_string(requestType) + " is not implemented";
 		return false;
 	}
 
-	iter = requestAttrs.find(VLR_GATEWAY_IMSI);
+    iter = requestAttrs.find(VLR_GATEWAY_SUBSCR_ID);
 	if (iter == requestAttrs.end()) {
-		errorDescr  = "IMSI is missing in request";
+        errorDescr  = "SubscriberID is missing in request";
 		return false;
 	}
 	if (iter->second.m_usDataLen != 8) {
-		errorDescr  = "IMSI param has incorrect size " + std::to_string(iter->second.m_usDataLen) +
+        errorDescr  = "SubscriberID param has incorrect size " + std::to_string(iter->second.m_usDataLen) +
 			". Its size must be 8 bytes.";
 		return false;
 	}
@@ -78,6 +78,11 @@ bool ClientRequest::SendRequestResultToClient(std::string& errorDescr)
 					VLR_GATEWAY_VLR_ADDRESS, &vlrAddr, sizeof(vlrAddr));
 			}
 		}
+        else if (requestType == imsiQuery) {
+            uint64_t imsi = htonll(imsiInVlr);
+            len = pspResponse.AddAttr(reinterpret_cast<SPSRequest*>(buffer), sizeof(buffer),
+                VLR_GATEWAY_IMSI, &imsi, sizeof(imsi));
+        }
 	}
 	else {
 		len = pspResponse.AddAttr(reinterpret_cast<SPSRequest*>(buffer), sizeof(buffer),

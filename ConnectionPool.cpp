@@ -112,6 +112,10 @@ void ConnectionPool::ProcessRequest(unsigned int index, ClientRequest* request, 
         requestedDevice = HLR;
         deviceCommand = "HGSDC: MSISDN=" + std::to_string(request->subscriberID) + ",SUD=TS11-0;";
         break;
+    case imsiQuery:
+        requestedDevice = VLR;
+        deviceCommand = "MGTRP: MSISDN=" + std::to_string(request->subscriberID) + ";";
+        break;
     default:
         request->resultCode = CMD_UNKNOWN;
         request->resultDescr = "ConnectionPool: unknown request "
@@ -126,12 +130,11 @@ void ConnectionPool::ProcessRequest(unsigned int index, ClientRequest* request, 
         request->resultDescr = "Failed to process VLR/HLR command: "+ hlrConnect->GetErrDescription();
         return;
     }
-    if (request->requestType == stateQuery) {
-        ParseRes res = ResponseParser::Parse(requestedDevice, response.c_str(), *request);
-        if (res == success) {
-            request->resultCode = OPERATION_SUCCESS;
-        }
-        else if (res == infoNotComplete) {
+
+    if (request->requestType == stateQuery || request->requestType == imsiQuery) {
+        ParseRes res = ResponseParser::ParseAndSetResultCode(request->requestType, requestedDevice,
+                                             response.c_str(), *request);
+        if (request->requestType == stateQuery && res == infoNotComplete) {
             requestedDevice = HLR;
             deviceCommand = "HGSDP: IMSI=" + std::to_string(request->subscriberID) + ",LOC;";
             if(!hlrConnect->ProcessCommand(deviceCommand, response)) {
@@ -139,23 +142,13 @@ void ConnectionPool::ProcessRequest(unsigned int index, ClientRequest* request, 
                 request->resultDescr = "Failed to process HLR command: "+ hlrConnect->GetErrDescription();
                 return;
             }
-            res = ResponseParser::Parse(requestedDevice, response.c_str(), *request);
-            if (res == success) {
-                request->resultCode = OPERATION_SUCCESS;
-            }
-            else {
-                request->resultCode = BAD_DEVICE_RESPONSE;
-                request->resultDescr = "Unable to parse device response";
-            }
-
-        }
-        else if (res == failure) {
-            request->resultCode = BAD_DEVICE_RESPONSE;
-            request->resultDescr = "Unable to parse device response";
+            ResponseParser::ParseAndSetResultCode(request->requestType, requestedDevice,
+                                        response.c_str(), *request);
         }
     }
     else {
         request->resultCode = OPERATION_SUCCESS;
     }
+
 }
 

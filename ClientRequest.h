@@ -5,13 +5,8 @@
 #include <chrono>
 #include "ps_common.h"
 #include "pspacket.h"
+#include "Common.h"
 
-enum RequestType {
-	stateQuery = 0,
-    resetRequest = 1,
-    activateRequest = 2,
-    deactivateRequest = 3
-};
 
 enum SubscriberState
 {
@@ -44,6 +39,7 @@ public:
     SubscriberState subscriberState;
 	SubscriberOnline subscriberOnline; 
 	uint64_t vlrAddress; 
+    uint64_t imsiInVlr;
     steady_clock::time_point accepted;
     int8_t resultCode;
 	std::string resultDescr;

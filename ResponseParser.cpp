@@ -1,31 +1,45 @@
 #include "ResponseParser.h"
 
 
-ResponseParser::ResponseParser()
+ParseRes ResponseParser::ParseAndSetResultCode(RequestType requestType, RequestedDevice requestedDevice,
+                               const char* response, ClientRequest& request)
 {
+    ParseRes res = ResponseParser::Parse(requestType, requestedDevice, response, request);
+    if (res == success) {
+        request.resultCode = OPERATION_SUCCESS;
+    }
+    else {
+        request.resultCode = BAD_DEVICE_RESPONSE;
+        request.resultDescr = "Unable to parse device response";
+    }
+    return res;
 }
 
 
-ResponseParser::~ResponseParser()
+ParseRes ResponseParser::Parse(RequestType requestType, RequestedDevice requestedDevice,
+                               const char* response, ClientRequest& clientRequest)
 {
-}
-
-
-ParseRes ResponseParser::Parse(RequestedDevice requestedDevice, const char* response, ClientRequest& clientRequest)
-{
-	if (requestedDevice == VLR) {
-		return ParseVLRResponse(response, clientRequest);
+    if (requestType == stateQuery) {
+        if (requestedDevice == VLR) {
+            return ParseStateQueryVLRResponse(response, clientRequest);
+        }
+        else if (requestedDevice == HLR) {
+            return ParseStateQueryHLRResponse(response, clientRequest);
+        }
+        else {
+            return failure;
+        }
 	}
-	else if (requestedDevice == HLR) {
-		return ParseHLRResponse(response, clientRequest);
-	}
+    else if (requestType == imsiQuery) {
+        return ParseImsiQueryVLRResponse(response, clientRequest);
+    }
 	else {
 		return failure;
 	}
 }
 
 
-ParseRes ResponseParser::ParseVLRResponse(const char* response, ClientRequest& clientRequest)
+ParseRes ResponseParser::ParseStateQueryVLRResponse(const char* response, ClientRequest& clientRequest)
 {
 	const char* end = response + strlen(response) - 1;
 	if (!TryToSkipSubstring("SUBSCRIBER DETAILS", response)) {
@@ -87,7 +101,7 @@ ParseRes ResponseParser::ParseVLRResponse(const char* response, ClientRequest& c
 }
 
 
-ParseRes ResponseParser::ParseHLRResponse(const char* response, ClientRequest& clientRequest)
+ParseRes ResponseParser::ParseStateQueryHLRResponse(const char* response, ClientRequest& clientRequest)
 {
 	const char* end = response + strlen(response) - 1;
 	if (!TryToSkipSubstring("HLR SUBSCRIBER DATA", response)) {
@@ -138,6 +152,41 @@ ParseRes ResponseParser::ParseHLRResponse(const char* response, ClientRequest& c
         return success;
     }
 	return ParseVlrAddr(response, clientRequest);
+}
+
+
+ParseRes ResponseParser::ParseImsiQueryVLRResponse(const char* response, ClientRequest& clientRequest)
+{
+    const char* end = response + strlen(response) - 1;
+    if (!TryToSkipSubstring("MT MSISDN TO IMSI TRANSLATION DATA", response)) {
+        clientRequest.resultDescr = "MT MSISDN TO IMSI TRANSLATION DATA not found in VLR response";
+        return failure;
+    }
+    if (!TryToSkipDelimiters(response, end)) {
+        clientRequest.resultDescr = "Unknown format of VLR response";
+        return failure;
+    }
+    if (!TryToSkipSubstring("MSISDN            IMSI             FCODE", response)) {
+        clientRequest.resultDescr = "Unknown format of VLR response";
+        return failure;
+    }
+    if (!TryToSkipDelimiters(response, end)) {
+        clientRequest.resultDescr = "Unknown format of VLR response";
+        return failure;
+    }
+    const size_t imsiPos = 18;
+    response += imsiPos;
+    if (response >= end) {
+        clientRequest.resultDescr = "Unknown format of VLR response";
+        return failure;
+    }
+    if (*response == ' ') {
+        clientRequest.imsiInVlr = 0;
+    }
+    else {
+        clientRequest.imsiInVlr = strtoull(response, nullptr, 10);
+    }
+    return success;
 }
 
 

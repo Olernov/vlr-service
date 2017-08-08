@@ -16,7 +16,7 @@ enum ParseRes {
 };
 
 
-/* Class for parsing VLR and HLR successful responses.
+/* Class for parsing VLR and HLR successful queries.
 VLR responses for MGSSP command looks like this: 	
 		"MT MOBILE SUBSCRIBER STATE
 		SUBSCRIBER DETAILS
@@ -62,18 +62,18 @@ VLR responses for MGSSP command looks like this:
 class ResponseParser
 {
 public:
-	ResponseParser();
-	~ResponseParser();
-    static ParseRes Parse(RequestedDevice requestedDevice, const char* response, ClientRequest& clientRequest);
+    static ParseRes ParseAndSetResultCode(RequestType requestType, RequestedDevice requestedDevice,
+                          const char* response, ClientRequest& request);
     static void StripHLRResponse(char* start, std::string& result);
 private:
-	static ParseRes ParseVLRResponse(const char* response, ClientRequest& clientRequest);
-	static ParseRes ParseHLRResponse(const char* response, ClientRequest& clientRequest);
+    static ParseRes Parse(RequestType requestType, RequestedDevice requestedDevice,
+                          const char* response, ClientRequest& clientRequest);
+    static ParseRes ParseStateQueryVLRResponse(const char* response, ClientRequest& clientRequest);
+    static ParseRes ParseStateQueryHLRResponse(const char* response, ClientRequest& clientRequest);
+    static ParseRes ParseImsiQueryVLRResponse(const char* response, ClientRequest& clientRequest);
 	static bool AllCharsAreDigits(const char* str, size_t len);
 	static bool TryToSkipSubstring(const char* substr, const char*& str);
 	static bool TryToSkipDelimiters(const char*& str, const char* end);
 	static ParseRes ParseVlrAddr(const char* response, ClientRequest& clientRequest);
 
 };
-
-

@@ -68,6 +68,10 @@ private:
     bool SendLoginAttribute(const std::string& attributeName, const std::string& attributeValue);
     bool Reconnect();
     void RestoreConnectionIfNeeded();
+    void MaintainDialogIfNeeded(const std::string& response);
+    void SendCRLF();
+    void SendEscapeSymbol();
+    bool ResponseEndsWithPrompt(const std::string& response);
     void TelnetParse(unsigned char* recvbuf, int* bytesRecv);
     bool SendCommandToDevice(std::string hlrCommand);
     bool ProcessDeviceResponse(std::string& response);
